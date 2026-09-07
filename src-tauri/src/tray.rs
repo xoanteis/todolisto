@@ -23,8 +23,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 window::toggle(tray.app_handle());
             }
         });
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
+    match app.default_window_icon() {
+        Some(icon) => builder = builder.icon(icon.clone()),
+        None => builder = builder.icon(tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?),
     }
     builder.build(app)?;
     Ok(())

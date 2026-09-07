@@ -427,7 +427,12 @@ Each milestone is one pull request and ends with a downloadable Windows build.
 | M4 ✅ | Search and history: in-memory search (no SQLite needed at this scale), global and per-session search with tag/date filters, jump to the note, copy session as Markdown | Fast access to the past |
 | M5 ✅ | Google Drive sync: OAuth `drive.file` with PKCE, per-profile account, background sync every 30 s and on session end, conflict copies, sessions owned by the PC that started them. Not yet: settings sync, "take over" of a session open elsewhere | The same stream on every PC |
 | M6 ✅ | Session agent: Claude extraction with structured output (tag-only mode without a key), review panel, title/summary write-back, to-do digest with done state, facts/questions/decisions/ideas | Sessions become actionable |
-| M7 | Polish: settings UI, backup/restore, auto-update; later executors (GitHub issues, calendar, digest) | Daily-driver quality |
+| M7 | Polish: settings UI for the remaining settings.json keys, backup/restore, auto-update, tag autocomplete, "take over" of a session open elsewhere, settings sync; later executors (GitHub issues, calendar, weekly digest) | Daily-driver quality |
+
+Status on 2026-09-07: M0 to M6 are implemented and green in CI (tests on Linux, portable
+exe built on Windows). Everything Windows-specific (hotkey focus, opacity, tray, DPAPI,
+the OAuth loopback) compiles for the Windows target but has only been exercised by CI's
+build, not by hand: the first run on a real PC is the next validation step.
 
 Order is negotiable: M3 can move before M2 if the hotkey matters more than spell check.
 
