@@ -2,14 +2,17 @@
 // runs outside Tauri (`npm run dev` in a browser, end-to-end tests). State is
 // kept in localStorage so a page reload behaves like restarting the app.
 
+import { digestOf, proposalFromTags, type Proposal, type Selection } from "../model/agent";
 import { renderMarkdown, searchSessions } from "../model/search";
 import { extractTags } from "../model/tags";
 import { ulid } from "../model/ulid";
 import {
   MAX_OPACITY,
   MIN_OPACITY,
+  type AgentStatus,
   type Backend,
   type DriveStatus,
+  type Pending,
   type EndReason,
   type Entry,
   type Session,
@@ -24,6 +27,9 @@ interface Data {
   settings: Settings;
   sessions: Record<string, Session[]>;
   userWords?: Record<string, string[]>;
+  pending?: Record<string, Pending[]>;
+  done?: Record<string, Record<string, string>>;
+  agentKey?: string;
 }
 
 export function defaultSettings(): Settings {
@@ -47,6 +53,9 @@ export function defaultSettings(): Settings {
     autocorrect: "safe",
     google_client_id: "",
     google_client_secret: "",
+    agent_enabled: true,
+    agent_auto: true,
+    agent_model: "claude-opus-5",
   };
 }
 
@@ -148,6 +157,24 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     };
     persist();
     return s;
+  }
+
+  function addPending(profile: string, session: Session): Proposal {
+    const proposal = proposalFromTags(session);
+    data.pending ??= {};
+    const list = (data.pending[profile] ??= []).filter((p) => p.session_id !== session.header.id);
+    list.unshift({ session_id: session.header.id, proposal, created: new Date().toISOString() });
+    data.pending[profile] = list;
+    persist();
+    return proposal;
+  }
+
+  function agentStatus(): AgentStatus {
+    return { enabled: data.settings.agent_enabled, auto: data.settings.agent_auto, model: data.settings.agent_model, has_key: Boolean(data.agentKey) };
+  }
+
+  function pick<T>(list: T[], indexes: number[]): T[] {
+    return indexes.map((i) => list[i]).filter((x): x is T => x !== undefined);
   }
 
   function autoClose(profile: string, now: string): Session | null {
@@ -258,6 +285,66 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     onDataChanged() {
       return () => {};
     },
+    async agentStatus() {
+      return agentStatus();
+    },
+    async agentSetKey(key) {
+      data.agentKey = key.trim() || undefined;
+      persist();
+      return agentStatus();
+    },
+    async agentRun(profile, id) {
+      return clone(addPending(profile, find(profile, id)));
+    },
+    async agentPending(profile) {
+      return clone(data.pending?.[profile] ?? []);
+    },
+    async agentApply(profile, id, proposal: Proposal, selection: Selection) {
+      const s = find(profile, id);
+      const title = selection.title?.trim();
+      if (title) {
+        s.header.title = title;
+        if (s.end) s.end.title = title;
+      }
+      s.actions.push({
+        type: "agent",
+        entry: null,
+        at: new Date().toISOString(),
+        data: {
+          source: proposal.source,
+          summary: selection.summary ? proposal.summary : null,
+          todos: pick(proposal.todos, selection.todos),
+          facts: pick(proposal.facts, selection.facts),
+          questions: pick(proposal.questions, selection.questions),
+          decisions: pick(proposal.decisions, selection.decisions),
+          ideas: pick(proposal.ideas, selection.ideas),
+        },
+      });
+      if (data.pending?.[profile]) data.pending[profile] = data.pending[profile].filter((p) => p.session_id !== id);
+      persist();
+      return this.agentDigest(profile);
+    },
+    async agentDiscard(profile, id) {
+      if (data.pending?.[profile]) data.pending[profile] = data.pending[profile].filter((p) => p.session_id !== id);
+      persist();
+    },
+    async agentDigest(profile) {
+      return digestOf([...list(profile)].sort(byStarted), data.done?.[profile] ?? {});
+    },
+    async todoSetDone(profile, id, done) {
+      data.done ??= {};
+      const map = (data.done[profile] ??= {});
+      if (done) map[id] = new Date().toISOString();
+      else delete map[id];
+      persist();
+      return this.agentDigest(profile);
+    },
+    onAgentProposal() {
+      return () => {};
+    },
+    onAgentError() {
+      return () => {};
+    },
     async getStream(profile, now) {
       autoClose(profile, now);
       const sessions = [...list(profile)].sort(byStarted).map(summary);
@@ -295,7 +382,11 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
       return clone(s);
     },
     async endSession(profile, id, ended, reason) {
-      return clone(endSession(profile, id, ended, reason));
+      const closed = endSession(profile, id, ended, reason);
+      if (closed && data.settings.agent_enabled && data.settings.agent_auto) {
+        addPending(profile, closed);
+      }
+      return clone(closed);
     },
     async reopenSession(profile, id) {
       const s = find(profile, id);

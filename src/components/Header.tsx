@@ -17,6 +17,10 @@ interface Props {
   onSearch(): void;
   drive: DriveStatus | null;
   onSync(): void;
+  openTodos: number;
+  pendingReviews: number;
+  onDigest(): void;
+  onAgent(): void;
 }
 
 function driveLabel(status: DriveStatus | null): { text: string; state: string } {
@@ -27,7 +31,7 @@ function driveLabel(status: DriveStatus | null): { text: string; state: string }
   return { text: "☁ connected", state: "ok" };
 }
 
-export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity, onSearch, drive, onSync }: Props) {
+export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity, onSearch, drive, onSync, openTodos, pendingReviews, onDigest, onAgent }: Props) {
   const color = profiles.find((p) => p.id === profile)?.color ?? "#888";
   const sync = driveLabel(drive);
   const count = open?.entries.length ?? 0;
@@ -51,6 +55,12 @@ export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEn
       <div className="spacer" />
       <button type="button" className="search-button" onClick={onSearch} title="Search all notes (Ctrl+Shift+F)">
         Search
+      </button>
+      <button type="button" className="digest-button" onClick={onDigest} title="To do, facts, questions, decisions, ideas (Ctrl+T)">
+        To do{openTodos ? ` ${openTodos}` : ""}
+      </button>
+      <button type="button" className="agent-button" data-pending={pendingReviews > 0 ? "1" : undefined} onClick={onAgent} title="Session agent settings">
+        Agent{pendingReviews ? ` · ${pendingReviews} to review` : ""}
       </button>
       <button type="button" className="sync-button" data-state={sync.state} onClick={onSync} title={drive?.last_error ?? "Google Drive sync"}>
         {sync.text}

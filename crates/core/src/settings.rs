@@ -52,6 +52,12 @@ pub struct Settings {
     /// Shared by every profile; each profile signs in with its own account.
     pub google_client_id: String,
     pub google_client_secret: String,
+    /// Run the session agent (needs an Anthropic API key in the secrets).
+    pub agent_enabled: bool,
+    /// Run it automatically when a session ends.
+    pub agent_auto: bool,
+    /// Claude model id used by the agent.
+    pub agent_model: String,
 }
 
 impl Default for Settings {
@@ -76,6 +82,9 @@ impl Default for Settings {
             autocorrect: "safe".to_string(),
             google_client_id: String::new(),
             google_client_secret: String::new(),
+            agent_enabled: true,
+            agent_auto: true,
+            agent_model: "claude-opus-5".to_string(),
         }
     }
 }
@@ -124,6 +133,10 @@ impl Settings {
         self.hotkey = self.hotkey.trim().to_string();
         if !["off", "safe", "aggressive"].contains(&self.autocorrect.as_str()) {
             self.autocorrect = "safe".to_string();
+        }
+        self.agent_model = self.agent_model.trim().to_string();
+        if self.agent_model.is_empty() {
+            self.agent_model = "claude-opus-5".to_string();
         }
         self.google_client_id = self.google_client_id.trim().to_string();
         self.google_client_secret = self.google_client_secret.trim().to_string();

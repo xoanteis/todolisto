@@ -15,6 +15,9 @@ const MAGIC: &[u8] = b"TDLS1";
 pub struct Secrets {
     #[serde(default)]
     pub accounts: BTreeMap<String, Account>,
+    /// Anthropic API key for the session agent.
+    #[serde(default)]
+    pub anthropic_api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

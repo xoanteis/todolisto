@@ -4,6 +4,7 @@
 
 use chrono::NaiveDate;
 
+use crate::agent;
 use crate::model::{EndReason, Session};
 
 pub fn render(session: &Session) -> String {
@@ -35,6 +36,33 @@ pub fn render(session: &Session) -> String {
     }
     out.push_str(&meta);
     out.push_str("\n\n");
+
+    if let Some(kept) = agent::applied(session) {
+        if let Some(summary) = kept.summary.as_ref().filter(|s| !s.trim().is_empty()) {
+            out.push_str(&format!("{summary}\n\n"));
+        }
+        let sections: [(&str, &Vec<agent::Item>, &str); 5] = [
+            ("To do", &kept.todos, "- [ ] "),
+            ("Facts", &kept.facts, "- "),
+            ("Open questions", &kept.questions, "- "),
+            ("Decisions", &kept.decisions, "- "),
+            ("Ideas", &kept.ideas, "- "),
+        ];
+        for (heading, items, bullet) in sections {
+            if items.is_empty() {
+                continue;
+            }
+            out.push_str(&format!("### {heading}\n\n"));
+            for item in items {
+                out.push_str(&format!("{bullet}{}", item.text));
+                if let Some(due) = &item.due {
+                    out.push_str(&format!(" (due {due})"));
+                }
+                out.push('\n');
+            }
+            out.push('\n');
+        }
+    }
 
     let mut current_day: Option<NaiveDate> = None;
     for e in &session.entries {

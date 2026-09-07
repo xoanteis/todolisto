@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import type { Backend, DataChanged, DriveStatus } from "./types";
+import type { Backend, DataChanged, DriveStatus, ProposalEvent } from "./types";
 
 function subscribe<T>(event: string, handler: (payload: T) => void): () => void {
   const pending = listen<T>(event, (e) => handler(e.payload));
@@ -31,6 +31,16 @@ export const tauriBackend: Backend = {
   driveSyncNow: (profile) => invoke("drive_sync_now", { profile }),
   onSyncStatus: (handler) => subscribe<{ profile: string; status: DriveStatus }>("sync:status", (e) => handler(e.profile, e.status)),
   onDataChanged: (handler) => subscribe<DataChanged>("data:changed", handler),
+  agentStatus: () => invoke("agent_status"),
+  agentSetKey: (key) => invoke("agent_set_key", { key }),
+  agentRun: (profile, session_id) => invoke("agent_run", { profile, session_id }),
+  agentPending: (profile) => invoke("agent_pending", { profile }),
+  agentApply: (profile, session_id, proposal, selection) => invoke("agent_apply", { profile, session_id, proposal, selection }),
+  agentDiscard: (profile, session_id) => invoke("agent_discard", { profile, session_id }),
+  agentDigest: (profile) => invoke("agent_digest", { profile }),
+  todoSetDone: (profile, id, done) => invoke("todo_set_done", { profile, id, done }),
+  onAgentProposal: (handler) => subscribe<ProposalEvent>("agent:proposal", handler),
+  onAgentError: (handler) => subscribe<{ profile: string; session_id: string; error: string }>("agent:error", handler),
   getStream: (profile, now) => invoke("get_stream", { profile, now }),
   readSession: (profile, session_id) => invoke("read_session", { profile, session_id }),
   startSession: (profile, started) => invoke("start_session", { profile, started }),

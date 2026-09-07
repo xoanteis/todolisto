@@ -12,11 +12,15 @@ interface Props {
   onCopyMarkdown(id: string): void;
   /** Entry to scroll to once its session is expanded; `nonce` retriggers. */
   focus: { sessionId: string; entryId: string; nonce: number } | null;
+  /** Sessions with an agent proposal waiting for review. */
+  pending: Set<string>;
+  onReview(id: string): void;
+  onRunAgent(id: string): void;
 }
 
 const RECENT = 12;
 
-export function SessionList({ sessions, expanded, onToggle, onCopyMarkdown, focus }: Props) {
+export function SessionList({ sessions, expanded, onToggle, onCopyMarkdown, focus, pending, onReview, onRunAgent }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   const focusedSession = focus ? expanded[focus.sessionId] : undefined;
@@ -65,6 +69,16 @@ export function SessionList({ sessions, expanded, onToggle, onCopyMarkdown, focu
                 <span className="title">{s.title ?? s.first_line ?? ""}</span>
                 <span className="meta">{meta}</span>
               </button>
+              {pending.has(s.id) && (
+                <button type="button" className="copy review-badge" onClick={() => onReview(s.id)} title="The agent proposed items for this session">
+                  Review
+                </button>
+              )}
+              {state && state !== "loading" && !pending.has(s.id) && !s.open && (
+                <button type="button" className="copy" onClick={() => onRunAgent(s.id)} title="Ask the agent to review this session">
+                  Agent
+                </button>
+              )}
               {state && state !== "loading" && (
                 <button type="button" className="copy" onClick={() => onCopyMarkdown(s.id)} title="Copy this session as Markdown">
                   Copy as Markdown

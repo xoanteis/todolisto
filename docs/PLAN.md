@@ -426,7 +426,7 @@ Each milestone is one pull request and ends with a downloadable Windows build.
 | M3 ✅ | Window: global hotkey, opacity, always-on-top, tray, remembered position, single instance, profile switching | The "bring it in front of me" workflow |
 | M4 ✅ | Search and history: in-memory search (no SQLite needed at this scale), global and per-session search with tag/date filters, jump to the note, copy session as Markdown | Fast access to the past |
 | M5 ✅ | Google Drive sync: OAuth `drive.file` with PKCE, per-profile account, background sync every 30 s and on session end, conflict copies, sessions owned by the PC that started them. Not yet: settings sync, "take over" of a session open elsewhere | The same stream on every PC |
-| M6 | Session agent: Claude extraction with structured output, review panel, local actions (title, summary, TODO list, facts), write-back | Sessions become actionable |
+| M6 ✅ | Session agent: Claude extraction with structured output (tag-only mode without a key), review panel, title/summary write-back, to-do digest with done state, facts/questions/decisions/ideas | Sessions become actionable |
 | M7 | Polish: settings UI, backup/restore, auto-update; later executors (GitHub issues, calendar, digest) | Daily-driver quality |
 
 Order is negotiable: M3 can move before M2 if the hotkey matters more than spell check.

@@ -32,6 +32,7 @@ Keys
   Right click / Ctrl+. suggestions for a misspelled word
   Ctrl+Shift+F        search all notes (#tag filters, accents optional)
   Ctrl+F              search inside the open session
+  Ctrl+T              to-dos and facts kept from reviewed sessions
 
 The close button hides the window to the tray icon; use the tray menu to
 quit. Starting todolisto.exe again just brings the running window back.
@@ -39,6 +40,11 @@ Hotkey, opacity, pin and the other options live in config\settings.json.
 
 Sessions also close by themselves after 90 minutes without writing
 (config\settings.json, "inactivity_minutes"; 0 disables it).
+
+Session agent: when a session ends, a proposal (title, summary, to-dos,
+facts, questions) waits for your review at the top. Add an Anthropic API
+key under "Agent" in the top bar to let Claude read the session; without a
+key only your #tags are used.
 
 Google Drive sync: click the cloud button in the top bar. The setup guide
 is docs/GOOGLE_DRIVE.md in the repository (an OAuth client of your own,

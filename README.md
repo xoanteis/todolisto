@@ -8,14 +8,16 @@ Scoping plan, decisions and roadmap: [docs/PLAN.md](docs/PLAN.md).
 
 ## Status
 
-Milestones M1 to M5 of the plan: timestamped entries, multi-line entries,
+Milestones M1 to M6 of the plan: timestamped entries, multi-line entries,
 sessions with manual and automatic close, per-profile storage, history of
 past sessions, spell check in English, Spanish and Galician with
 suggestions and a personal dictionary, safe autocorrect, global hotkey
 (Ctrl+Alt+N), window opacity, pin on top, tray icon, remembered window
 position, single instance, search across all notes with tag and date
 filters, copy a session as Markdown, Google Drive sync per profile with
-conflict copies. The session agent comes next.
+conflict copies, and a session agent that turns a finished session into a
+title, a summary, to-dos, facts, questions, decisions and ideas you review
+before they are saved.
 
 ## Keys
 
@@ -32,11 +34,29 @@ conflict copies. The session agent comes next.
 | Right click or Ctrl+. | Suggestions for a misspelled word, add it to the dictionary, or ignore it |
 | Ctrl+Shift+F | Search everything (`#tag` filters, accents optional); Enter jumps to the note |
 | Ctrl+F | Search inside the open session |
+| Ctrl+T | To-dos, facts, questions, decisions and ideas kept from reviewed sessions |
 | Backspace right after an autocorrection | Restores what you typed |
 
 The close button hides the window to the tray (`close_to_tray`); quit from
 the tray menu. Sessions also close by themselves after 90 minutes without
 writing (`inactivity_minutes`, 0 disables it).
+
+## Session agent
+
+When a session ends, the agent proposes a title, a two-line summary and
+the actionable items it finds. Nothing is written until you review the
+proposal (banner at the top, or the *Review* button of the session in the
+history). Applied items land in the session file as an `action` record
+and in its Markdown copy; to-dos get a done state in
+`data/<profile>/todos.json` (synced) and are listed with Ctrl+T.
+
+Without an API key the agent only sorts your `#tags` (`#todo`, `#data`,
+`#q`, `#decision`, `#idea`). With an Anthropic API key (top bar → *Agent*),
+the notes of that one session are sent to Claude (`claude-opus-5` by
+default, structured JSON answer, server-side refusal fallback) and the
+tagged entries are merged in so none is lost. The key is stored encrypted
+in `config/secrets.bin`; a session costs a few cents. `agent_enabled`,
+`agent_auto` and `agent_model` live in the settings.
 
 ## Sync
 
@@ -92,12 +112,15 @@ config/secrets.bin                                     Google refresh tokens, DP
 cache/sync/<profile>.json                              sync state (safe to delete)
 data/<profile>/dictionary.txt                          words added to the spell checker
 data/<profile>/autocorrect.txt                         personal autocorrect rules (wrong=right)
+data/<profile>/todos.json                              done state of the to-dos
+cache/agent/<profile>/<session>.json                   proposals waiting for review
 data/<profile>/<year>/<YYYY-MM-DDTHHMMSS>_<id>.jsonl   one file per session
 data/<profile>/<year>/<same stem>.md                   rendered copy of a closed session
 ```
 
 Each `.jsonl` line is a record: `session` (header), `entry`, `session_end`,
-`action`. Timestamps are RFC 3339 with the local offset.
+`action` (the agent's kept items, `type: "agent"`). Timestamps are RFC 3339
+with the local offset.
 
 ## Development
 

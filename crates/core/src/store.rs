@@ -259,6 +259,11 @@ impl Store {
         self.profile_dir(profile).join("dictionary.txt")
     }
 
+    /// Done state of the to-dos of a profile.
+    pub fn todos_path(&self, profile: &str) -> PathBuf {
+        self.profile_dir(profile).join("todos.json")
+    }
+
     /// Words the user added to the dictionary of a profile, one per line in
     /// `data/<profile>/dictionary.txt`.
     pub fn user_words(&self, profile: &str) -> Result<Vec<String>> {

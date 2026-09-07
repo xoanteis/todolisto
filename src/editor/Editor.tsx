@@ -26,6 +26,8 @@ export interface EditorHandlers {
   onAddWord(word: string): void;
   /** Ctrl+F (this session) and Ctrl+Shift+F (everything). */
   onSearch(scope: "session" | "all"): void;
+  /** Ctrl+T: the to-do digest. */
+  onDigest(): void;
 }
 
 export interface EditorHandle {
@@ -110,6 +112,10 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
           },
           "Mod-Shift-f": () => {
             handlersRef.current.onSearch("all");
+            return true;
+          },
+          "Mod-t": () => {
+            handlersRef.current.onDigest();
             return true;
           },
           Escape: () => handlersRef.current.onHide(),

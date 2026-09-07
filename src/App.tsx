@@ -6,9 +6,11 @@ import {
   MIN_OPACITY,
   OPACITY_STEP,
   errorMessage,
+  type AgentStatus,
   type AppInfo,
   type DriveStatus,
   type Entry,
+  type Pending,
   type Session,
   type SessionSummary,
   type Settings,
@@ -18,6 +20,10 @@ import { Header } from "./components/Header";
 import { SearchPanel, type SearchScope } from "./components/SearchPanel";
 import { SessionList, type Expanded } from "./components/SessionList";
 import { SyncDialog } from "./components/SyncDialog";
+import { AgentDialog } from "./components/AgentDialog";
+import { DigestPanel } from "./components/DigestPanel";
+import { ReviewPanel } from "./components/ReviewPanel";
+import type { Digest, DigestItem, Proposal, Selection } from "./model/agent";
 import { Editor, type EditorHandle, type SpellOptions } from "./editor/Editor";
 import type { SearchHit, SearchQuery } from "./model/search";
 import { formatDay, nowIso, timeOf } from "./model/time";
@@ -44,6 +50,13 @@ export function App() {
   const [driveStatuses, setDriveStatuses] = useState<Record<string, DriveStatus>>({});
   const [syncDialog, setSyncDialog] = useState(false);
   const [syncBusy, setSyncBusy] = useState<string | null>(null);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
+  const [agentDialog, setAgentDialog] = useState(false);
+  const [pending, setPending] = useState<Pending[]>([]);
+  const [review, setReview] = useState<{ sessionId: string; proposal: Proposal } | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [digest, setDigest] = useState<Digest | null>(null);
+  const [digestOpen, setDigestOpen] = useState(false);
   const [profile, setProfile] = useState("");
   const [open, setOpen] = useState<Session | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -64,6 +77,9 @@ export function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), TOAST_MS);
   }, []);
 
+  const refreshSessionsRef = useRef<() => Promise<void>>(async () => {});
+  const refreshSessions = useCallback(() => refreshSessionsRef.current(), []);
+
   const setOpenSession = useCallback((session: Session | null) => {
     openRef.current = session;
     setOpen(session);
@@ -78,6 +94,13 @@ export function App() {
       setSessions(stream.sessions);
       setExpanded({});
       setDocKey(`${p}:${stream.open?.header.id ?? "new"}:${Date.now()}`);
+      void Promise.all([backend.agentPending(p), backend.agentDigest(p)])
+        .then(([pendingList, digestData]) => {
+          if (profileRef.current !== p) return;
+          setPending(pendingList);
+          setDigest(digestData);
+        })
+        .catch((e) => console.warn("agent state", e));
     },
     [setOpenSession],
   );
@@ -147,6 +170,125 @@ export function App() {
     })();
   }, [loadStream, showToast]);
 
+  useEffect(() => {
+    backend.agentStatus().then(setAgentStatus).catch((e) => console.warn("agent status", e));
+  }, []);
+
+  const refreshAgent = useCallback(async () => {
+    const p = profileRef.current;
+    const [pendingList, digestData] = await Promise.all([backend.agentPending(p), backend.agentDigest(p)]);
+    if (profileRef.current !== p) return;
+    setPending(pendingList);
+    setDigest(digestData);
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeProposal = backend.onAgentProposal((event) => {
+      if (event.profile !== profileRef.current) return;
+      void refreshAgent().then(() => showToast(event.todos ? `Session reviewed: ${event.todos} to-do${event.todos === 1 ? "" : "s"} proposed` : "Session reviewed"));
+    });
+    const unsubscribeError = backend.onAgentError((event) => {
+      if (event.profile === profileRef.current) showToast(`Agent: ${event.error}`);
+    });
+    return () => {
+      unsubscribeProposal();
+      unsubscribeError();
+    };
+  }, [refreshAgent, showToast]);
+
+  const openReview = useCallback(
+    (sessionId: string) => {
+      const item = pending.find((p) => p.session_id === sessionId);
+      if (item) setReview({ sessionId, proposal: item.proposal });
+    },
+    [pending],
+  );
+
+  const runAgent = useCallback(
+    async (sessionId: string) => {
+      setReviewBusy(true);
+      try {
+        const proposal = await backend.agentRun(profileRef.current, sessionId);
+        await refreshAgent();
+        setReview({ sessionId, proposal });
+      } catch (e) {
+        showToast(`Agent: ${errorMessage(e)}`);
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [refreshAgent, showToast],
+  );
+
+  const applyReview = useCallback(
+    async (selection: Selection) => {
+      if (!review) return;
+      setReviewBusy(true);
+      try {
+        const digestData = await backend.agentApply(profileRef.current, review.sessionId, review.proposal, selection);
+        setDigest(digestData);
+        setReview(null);
+        await refreshAgent();
+        await refreshSessions();
+        const kept = selection.todos.length;
+        showToast(kept ? `Applied · ${kept} to-do${kept === 1 ? "" : "s"} added (Ctrl+T)` : "Applied");
+      } catch (e) {
+        showToast(errorMessage(e));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [review, refreshAgent, refreshSessions, showToast],
+  );
+
+  const discardReview = useCallback(async () => {
+    if (!review) return;
+    try {
+      await backend.agentDiscard(profileRef.current, review.sessionId);
+      setReview(null);
+      await refreshAgent();
+    } catch (e) {
+      showToast(errorMessage(e));
+    }
+  }, [review, refreshAgent, showToast]);
+
+  const toggleDone = useCallback(
+    async (id: string, done: boolean) => {
+      try {
+        setDigest(await backend.todoSetDone(profileRef.current, id, done));
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [showToast],
+  );
+
+  const saveAgentKey = useCallback(
+    async (key: string) => {
+      try {
+        setAgentStatus(await backend.agentSetKey(key));
+        showToast(key ? "API key saved" : "API key removed");
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [showToast],
+  );
+
+  const saveAgentSettings = useCallback(
+    async (patch: Partial<Settings>) => {
+      if (!settings) return;
+      try {
+        const saved = await backend.saveSettings({ ...settings, ...patch });
+        setSettings(saved);
+        setAgentStatus(await backend.agentStatus());
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [settings, showToast],
+  );
+
   const loadDriveStatuses = useCallback(async (profiles: string[]) => {
     const entries = await Promise.all(profiles.map(async (id) => [id, await backend.driveStatus(id)] as const));
     setDriveStatuses((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
@@ -159,7 +301,7 @@ export function App() {
   }, [settings?.profiles.map((p) => p.id).join(","), loadDriveStatuses]);
 
   /** Re-reads the history after files changed on disk, leaving the editor alone. */
-  const refreshSessions = useCallback(async () => {
+  const refreshSessionsImpl = useCallback(async () => {
     const p = profileRef.current;
     const stream = await backend.getStream(p, nowIso());
     if (profileRef.current !== p) return;
@@ -183,11 +325,13 @@ export function App() {
     });
   }, [setOpenSession]);
 
+  refreshSessionsRef.current = refreshSessionsImpl;
+
   useEffect(() => {
     const unsubscribeStatus = backend.onSyncStatus((p, status) => setDriveStatuses((prev) => ({ ...prev, [p]: status })));
     const unsubscribeData = backend.onDataChanged((event) => {
       if (event.profile !== profileRef.current) return;
-      void refreshSessions().catch((e) => console.warn("refresh after sync", e));
+      void refreshSessionsImpl().catch((e) => console.warn("refresh after sync", e));
       if (event.dictionary) {
         Promise.all([backend.getUserWords(event.profile), backend.getAutocorrectRules(event.profile)])
           .then(([words, personal]) => {
@@ -202,7 +346,7 @@ export function App() {
       unsubscribeStatus();
       unsubscribeData();
     };
-  }, [refreshSessions, spell]);
+  }, [refreshSessionsImpl, spell]);
 
   const saveClient = useCallback(
     async (clientId: string, clientSecret: string) => {
@@ -392,6 +536,8 @@ export function App() {
   searchOpenRef.current = searchScope !== null;
   const syncDialogRef = useRef(false);
   syncDialogRef.current = syncDialog;
+  const overlayRef = useRef(false);
+  overlayRef.current = review !== null || digestOpen || agentDialog;
 
   const hideWindow = useCallback((): boolean => {
     if (searchOpenRef.current) {
@@ -400,6 +546,12 @@ export function App() {
     }
     if (syncDialogRef.current) {
       setSyncDialog(false);
+      return true;
+    }
+    if (overlayRef.current) {
+      setReview(null);
+      setDigestOpen(false);
+      setAgentDialog(false);
       return true;
     }
     if (!winRef.current?.hide_on_escape) return false;
@@ -449,7 +601,7 @@ export function App() {
     async (hit: SearchHit) => {
       setSearchScope(null);
       if (openRef.current && hit.session_id === openRef.current.header.id) {
-        editorRef.current?.focusEntry(hit.entry_id);
+        if (hit.entry_id) editorRef.current?.focusEntry(hit.entry_id);
         return;
       }
       if (!expanded[hit.session_id] || expanded[hit.session_id] === "loading") {
@@ -574,7 +726,57 @@ export function App() {
         onSearch={() => openSearch("all")}
         drive={driveStatuses[profile] ?? null}
         onSync={() => setSyncDialog(true)}
+        openTodos={digest?.todos.filter((t) => !t.done).length ?? 0}
+        pendingReviews={pending.length}
+        onDigest={() => setDigestOpen(true)}
+        onAgent={() => setAgentDialog(true)}
       />
+      {pending.length > 0 && !review && (
+        <div className="pending-banner" role="status">
+          <span>
+            {pending.length === 1 ? "A session is waiting for review" : `${pending.length} sessions are waiting for review`}
+            {pending[0].proposal.todos.length ? ` · ${pending[0].proposal.todos.length} to-do${pending[0].proposal.todos.length === 1 ? "" : "s"} proposed` : ""}
+          </span>
+          <button type="button" onClick={() => openReview(pending[0].session_id)}>
+            Review
+          </button>
+        </div>
+      )}
+      {review && (
+        <ReviewPanel
+          sessionLabel={(() => {
+            const s = sessions.find((x) => x.id === review.sessionId);
+            return s ? `${formatDay(s.started)} ${timeOf(s.started)}` : review.sessionId;
+          })()}
+          proposal={review.proposal}
+          canRerun={Boolean(agentStatus?.has_key && agentStatus.enabled)}
+          busy={reviewBusy}
+          onApply={(selection) => void applyReview(selection)}
+          onRerun={() => void runAgent(review.sessionId)}
+          onDiscard={() => void discardReview()}
+          onClose={() => setReview(null)}
+        />
+      )}
+      {digestOpen && (
+        <DigestPanel
+          digest={digest}
+          onToggleDone={(id, done) => void toggleDone(id, done)}
+          onOpen={(item: DigestItem) => {
+            setDigestOpen(false);
+            void openHit({ session_id: item.session_id, session_title: item.session_title, session_open: false, entry_id: item.entry_id ?? "", ts: item.ts, text: item.text, tags: [], highlights: [] });
+          }}
+          onClose={() => setDigestOpen(false)}
+        />
+      )}
+      {agentDialog && (
+        <AgentDialog
+          settings={settings}
+          status={agentStatus}
+          onSaveKey={(key) => void saveAgentKey(key)}
+          onSaveSettings={(patch) => void saveAgentSettings(patch)}
+          onClose={() => setAgentDialog(false)}
+        />
+      )}
       {syncDialog && (
         <SyncDialog
           settings={settings}
@@ -599,14 +801,23 @@ export function App() {
         />
       )}
       <main className="stream">
-        <SessionList sessions={closed} expanded={expanded} onToggle={(id) => void toggleSession(id)} onCopyMarkdown={(id) => void copyMarkdown(id)} focus={focusTarget} />
+        <SessionList
+          sessions={closed}
+          expanded={expanded}
+          onToggle={(id) => void toggleSession(id)}
+          onCopyMarkdown={(id) => void copyMarkdown(id)}
+          focus={focusTarget}
+          pending={new Set(pending.map((p) => p.session_id))}
+          onReview={openReview}
+          onRunAgent={(id) => void runAgent(id)}
+        />
         <section className="live" aria-label="Current session">
           <div className="live-title">{liveTitle}</div>
           <Editor
             ref={editorRef}
             entries={open?.entries ?? []}
             docKey={docKey}
-            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity, onAddWord: addWord, onSearch: openSearch }}
+            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity, onAddWord: addWord, onSearch: openSearch, onDigest: () => setDigestOpen(true) }}
             spell={spell}
             spellOptions={spellOpts}
           />
@@ -622,7 +833,7 @@ export function App() {
           {info ? ` · ${info.portable ? "portable" : "data"}: ${info.data_root}` : ""}
         </span>
         <span className="hints">
-          Enter new line · Shift+Enter new entry · Ctrl+Enter end session · Ctrl+Shift+Enter reopen · Ctrl+Shift+F search
+          Enter new line · Shift+Enter new entry · Ctrl+Enter end session · Ctrl+Shift+Enter reopen · Ctrl+Shift+F search · Ctrl+T to do
           {win?.hotkey ? ` · ${win.hotkey} show/hide` : ""}
         </span>
       </footer>

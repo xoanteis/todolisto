@@ -11,7 +11,7 @@
 //!   is pushed, the remote version is kept next to it as
 //!   `<stem>.conflict-<time>.<ext>` (conflict copies are never pushed).
 //! - Only session files (`*.jsonl`, `*.md` under the year folders), the
-//!   personal dictionary and the autocorrect rules are synced.
+//!   personal dictionary, the autocorrect rules and the to-do state are synced.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -120,7 +120,7 @@ pub fn is_syncable(name: &str) -> bool {
     if name.contains(".conflict-") || name.starts_with('.') {
         return false;
     }
-    if name == "dictionary.txt" || name == "autocorrect.txt" {
+    if name == "dictionary.txt" || name == "autocorrect.txt" || name == "todos.json" {
         return true;
     }
     is_session_name(name) && (name.ends_with(".jsonl") || name.ends_with(".md"))
@@ -328,6 +328,7 @@ mod tests {
         assert!(is_syncable("2026-09-07T093105_ABC123.md"));
         assert!(is_syncable("dictionary.txt"));
         assert!(is_syncable("autocorrect.txt"));
+        assert!(is_syncable("todos.json"));
         assert!(!is_syncable("2026-09-07T093105_ABC123.conflict-20260907T1000.jsonl"));
         assert!(!is_syncable(".2026-09-07T093105_ABC123.jsonl.1234.tmp"));
         assert!(!is_syncable("notes.txt"));

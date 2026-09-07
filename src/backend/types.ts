@@ -1,5 +1,6 @@
 // Data transfer types; field names are snake_case to match the Rust core.
 
+import type { Digest, Proposal, Selection } from "../model/agent";
 import type { SearchQuery, SearchResult } from "../model/search";
 
 export type EndReason = "manual" | "inactivity" | "taken_over";
@@ -81,6 +82,28 @@ export interface Settings {
   autocorrect: "off" | "safe" | "aggressive";
   google_client_id: string;
   google_client_secret: string;
+  agent_enabled: boolean;
+  agent_auto: boolean;
+  agent_model: string;
+}
+
+export interface AgentStatus {
+  enabled: boolean;
+  auto: boolean;
+  model: string;
+  has_key: boolean;
+}
+
+export interface Pending {
+  session_id: string;
+  proposal: Proposal;
+  created: string;
+}
+
+export interface ProposalEvent {
+  profile: string;
+  session_id: string;
+  todos: number;
 }
 
 export interface SyncReport {
@@ -158,6 +181,17 @@ export interface Backend {
   onSyncStatus(handler: (profile: string, status: DriveStatus) => void): () => void;
   /** Files of a profile changed on disk because of a sync. */
   onDataChanged(handler: (event: DataChanged) => void): () => void;
+  agentStatus(): Promise<AgentStatus>;
+  agentSetKey(key: string): Promise<AgentStatus>;
+  /** Builds a proposal (Claude when a key is set, tags otherwise). */
+  agentRun(profile: string, sessionId: string): Promise<Proposal>;
+  agentPending(profile: string): Promise<Pending[]>;
+  agentApply(profile: string, sessionId: string, proposal: Proposal, selection: Selection): Promise<Digest>;
+  agentDiscard(profile: string, sessionId: string): Promise<void>;
+  agentDigest(profile: string): Promise<Digest>;
+  todoSetDone(profile: string, id: string, done: boolean): Promise<Digest>;
+  onAgentProposal(handler: (event: ProposalEvent) => void): () => void;
+  onAgentError(handler: (event: { profile: string; session_id: string; error: string }) => void): () => void;
   /** Applies the inactivity rule, then returns the open session and the list. */
   getStream(profile: string, now: string): Promise<StreamState>;
   readSession(profile: string, sessionId: string): Promise<Session>;

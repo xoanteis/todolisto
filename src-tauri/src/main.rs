@@ -1,6 +1,7 @@
 // Hide the console window in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod agent;
 mod commands;
 mod drive;
 mod paths;
@@ -102,6 +103,14 @@ fn main() {
             commands::drive_connect,
             commands::drive_disconnect,
             commands::drive_sync_now,
+            commands::agent_status,
+            commands::agent_set_key,
+            commands::agent_run,
+            commands::agent_pending,
+            commands::agent_apply,
+            commands::agent_discard,
+            commands::agent_digest,
+            commands::todo_set_done,
         ])
         .run(tauri::generate_context!())
         .expect("error while running todolisto");

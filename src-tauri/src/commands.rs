@@ -9,6 +9,10 @@ use todolisto_core::store::{owned_by, NewSession};
 use todolisto_core::time::{local_tz_name, parse, Timestamp};
 use todolisto_core::{markdown, search, EndReason, Entry, SearchQuery, SearchResult, Session, SessionSummary, Settings};
 
+use todolisto_core::agent::{Proposal, Selection};
+use todolisto_core::Digest;
+
+use crate::agent::service::{self as agent, AgentStatus, Pending};
 use crate::drive::service::{self as drive, DriveStatus};
 use crate::state::AppState;
 use crate::window;
@@ -224,6 +228,12 @@ pub fn end_session(
     if drive::syncable_profiles(&state).iter().any(|p| p == &profile) {
         drive::sync_in_background(&app, &profile);
     }
+    if let Some(session) = &closed {
+        let settings = state.settings();
+        if settings.agent_enabled && settings.agent_auto {
+            agent::run_in_background(&app, &profile, &session.header.id);
+        }
+    }
     Ok(closed)
 }
 
@@ -323,4 +333,66 @@ pub async fn drive_sync_now(app: AppHandle, profile: String) -> CmdResult<todoli
     tauri::async_runtime::spawn_blocking(move || drive::sync(&handle, &profile))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn agent_status(state: State<'_, AppState>) -> AgentStatus {
+    agent::status(&state)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn agent_set_key(state: State<'_, AppState>, key: String) -> CmdResult<AgentStatus> {
+    agent::set_key(&state, &key)
+}
+
+/// Builds a proposal for a session (Claude when a key is set, tags otherwise).
+#[tauri::command(rename_all = "snake_case")]
+pub async fn agent_run(app: AppHandle, profile: String, session_id: String) -> CmdResult<Proposal> {
+    check_profile(&profile)?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || agent::run(&handle, &profile, &session_id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn agent_pending(state: State<'_, AppState>, profile: String) -> CmdResult<Vec<Pending>> {
+    check_profile(&profile)?;
+    Ok(agent::pending(&state, &profile))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn agent_apply(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    profile: String,
+    session_id: String,
+    proposal: Proposal,
+    selection: Selection,
+) -> CmdResult<Digest> {
+    check_profile(&profile)?;
+    agent::apply(&state, &profile, &session_id, &proposal, &selection)?;
+    if drive::syncable_profiles(&state).iter().any(|p| p == &profile) {
+        drive::sync_in_background(&app, &profile);
+    }
+    agent::digest(&state, &profile)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn agent_discard(state: State<'_, AppState>, profile: String, session_id: String) -> CmdResult<()> {
+    check_profile(&profile)?;
+    agent::discard(&state, &profile, &session_id);
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn agent_digest(state: State<'_, AppState>, profile: String) -> CmdResult<Digest> {
+    check_profile(&profile)?;
+    agent::digest(&state, &profile)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn todo_set_done(state: State<'_, AppState>, profile: String, id: String, done: bool) -> CmdResult<Digest> {
+    check_profile(&profile)?;
+    agent::set_done(&state, &profile, &id, done)
 }

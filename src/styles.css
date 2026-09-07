@@ -723,6 +723,153 @@ mark {
   border-radius: 3px;
 }
 
+/* Agent */
+.digest-button,
+.agent-button {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.agent-button[data-pending="1"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pending-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.9rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  border-bottom: 1px solid var(--faint);
+  font-size: 0.85rem;
+}
+
+.pending-banner button {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.review-badge {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.check input {
+  margin-top: 0.25rem;
+}
+
+.check.summary {
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  margin: 0.4rem 0;
+}
+
+.review-section h3 {
+  margin: 0.8rem 0 0.2rem;
+}
+
+.actions .primary {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--faint);
+  margin-bottom: 0.5rem;
+}
+
+.tab {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.digest-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.digest-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.35rem 0.2rem;
+  border-bottom: 1px solid var(--faint);
+}
+
+.digest-item.done .digest-text > span:first-child {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.digest-item input {
+  margin-top: 0.3rem;
+}
+
+.digest-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--fg);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.modal select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+}
+
 /* Status bar */
 .statusbar {
   display: flex;
