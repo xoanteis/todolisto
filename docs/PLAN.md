@@ -1,7 +1,34 @@
-# todolisto — scoping plan (v0.1, 2026-09-07)
+# todolisto — scoping plan (v0.2, 2026-09-07)
 
-Status: **draft for discussion**. Nothing here is built yet. Read section 2 (stack), skim
-section 4 (options), and answer section 6 (questions). "Defaults except 3, 7, 12" is a valid answer.
+Status: **scope agreed, implementation started**. Section 0 lists the decisions taken from
+the answers to section 6; the rest of the document is the reasoning behind them.
+
+---
+
+## 0. Decisions (2026-09-07)
+
+Defaults from section 6 apply unless a row says otherwise. Bold = changed from the default.
+
+| Topic | Decision |
+|---|---|
+| Layout | A: page with a timestamp gutter |
+| Timestamp unit | One per entry |
+| Keys | **Enter = new line inside the same entry; Shift+Enter = new entry with a new timestamp.** Ctrl+Enter ends the session |
+| Editing the past | Editable while the session is open (original timestamp kept, `edited` mark added); read-only after closing unless reopened |
+| Session end | Manual (Ctrl+Enter) **and automatic after inactivity** (default 90 min; the session closes at the time of its last entry with reason `inactivity`; "Reopen last session" is one shortcut away). The answer said "4" but described question 5; interpreted that way |
+| Entry types | Inline `#tags` plus agent inference |
+| Spelling | en_US, es_ES and gl_ES active at once; safe autocorrect by default, aggressive opt-in |
+| Storage | JSONL canonical, rendered Markdown copy per closed session |
+| Data root | Next to the exe when `portable.marker` exists, otherwise `%APPDATA%\todolisto` |
+| Sync | **Google Drive API only**; no Drive-for-Desktop backend. One Google account per profile |
+| Profiles | `work` and `personal`; one hotkey plus a switcher |
+| Window | Ctrl+Alt+N, 90 % opacity, always-on-top off unless pinned |
+| Agent | In-app through the Claude API, review before applying. **GitHub issue creation is dropped for now**; the first actions are local (session title and summary, TODO list, facts) |
+| Secrets | DPAPI-encrypted file next to the config |
+| UI language | English |
+| Machines | **Windows 10 and 11, several PCs.** Every PC must show the same stream, so sync is a first-class feature with explicit multi-device rules (section 4.5) |
+| Stack | Rust + Tauri 2, as recommended |
+| Never | No telemetry. Network only for sync and for the agent |
 
 ---
 
@@ -21,12 +48,14 @@ Core behaviour, as requested:
 - **Semi-structured**: entries can be TODOs, key data to remember, ideas, questions,
   decisions… without slowing the writer down.
 - **Sessions**: an explicit "end of session" mark (end of the meeting, end of the
-  brainstorm). Ending a session hands it to an **agent**; the first agent action is
-  **creating GitHub issues for the TODOs**.
+  brainstorm), or an automatic one after a period of inactivity. Ending a session hands
+  it to an **agent** that titles and summarises it and extracts TODOs, facts and
+  questions. Creating GitHub issues from the TODOs is a later executor.
 - **Profiles** (work, personal, …): each with its own storage, Google account and GitHub target.
 - **Global hotkey** that brings the app to the front, with **adjustable transparency**.
 - **Storage** that is convenient for agents, fast when looking at old notes, trivial to back
   up, and **synced to Google Drive** (Drive API), one Google account per profile.
+- **Several PCs** (Windows 10 and 11) that must all show the same stream.
 
 Non-goals for v1 (can be revisited): mobile/web client, real-time collaboration, rich text
 (bold, tables, images), audio recording or transcription, being a general Markdown editor.
@@ -138,7 +167,7 @@ lazily as you scroll up, so the document is effectively infinite.
  09:31:05  Kickoff with ACME about the migration
  09:32:40  #todo Ask Maria for the Q4 budget numbers
  09:35:02  Their API rate limit is 600 req/min per key #data
-           second line of the same entry (Shift+Enter)
+           second line of the same entry (Enter)
  09:41:17  #idea cache the report per tenant
  09:44:03  ▍
  ───────────────────────────────────────────────────────────────────────
@@ -153,10 +182,12 @@ entries is clunkier.
 `[2026-09-07 09:31:05]` prefix when you start a new line. Simplest possible thing, zero
 structure, everything is text. Could be the very first milestone even if we end at A.
 
-Keyboard model for A (proposed): `Enter` = new entry with a new timestamp;
-`Shift+Enter` = new line inside the same entry; `Ctrl+Enter` = end session;
-`Ctrl+End` = jump to the live entry; `Ctrl+P` = profile switcher; `Ctrl+F` = find in
-session; `Ctrl+Shift+F` = search everything; `Esc` = hide window (when opened via hotkey).
+Keyboard model for A (decided): `Enter` = new line inside the same entry;
+`Shift+Enter` = new entry with a new timestamp; `Ctrl+Enter` = end session;
+`Ctrl+Shift+Enter` = reopen the last session; `Ctrl+End` = jump to the live entry;
+`Ctrl+P` = profile switcher; `Ctrl+F` = find in session; `Ctrl+Shift+F` = search
+everything; `Esc` = hide window (when opened via hotkey). An entry receives its
+timestamp at the first character typed into it, not when the empty line appears.
 
 Timestamp display: `HH:MM:SS`, with a date separator once per day; hover shows the full
 value with timezone. Internally we store milliseconds and the UTC offset.
@@ -258,28 +289,39 @@ Folder layout (portable by default):
 
 Backup = copy `data\` (or rely on Drive). Restore = paste it back and rebuild the index.
 
-### 4.5 Sync with Google Drive
+### 4.5 Sync with Google Drive (decided: Drive API only)
 
-**Option A — Drive API (what you asked for).** OAuth 2.0 desktop flow (browser opens,
-loopback redirect), scope `drive.file` (the app sees only files it created), one Google
-account per profile. You create a Google Cloud project and an OAuth client ID once (I will
-write the step-by-step). The consent screen must be set to *In production* or refresh tokens
-die every 7 days; no verification is required with non-sensitive scopes only. The sync engine
-is local-first: upload on session close and every ~30 s while open; on start, list remote
-changes and pull new/updated files; last-writer-wins with a "keep both" copy on real
-divergence (Drive also keeps revisions).
+OAuth 2.0 desktop flow (the browser opens, loopback redirect), scope `drive.file` (the app
+sees only files it created), one Google account per profile. You create a Google Cloud
+project and an OAuth client ID once (step-by-step guide to be written in M5). The consent
+screen must be set to *In production* or refresh tokens die every 7 days; no verification is
+required with non-sensitive scopes only.
+
 Caveats: a Google Workspace admin can block unverified third-party apps for the work
-account; `drive.file` access is tied to the OAuth client ID, so the client must stay the
-same forever (or you re-authorise old files).
+account (fallback: create the OAuth client as an *Internal* app inside the work
+organisation); `drive.file` access is tied to the OAuth client ID, so the client must stay
+the same forever, or old files have to be re-authorised.
 
-**Option B — Google Drive for Desktop folder.** The app writes to
-`G:\My Drive\todolisto\<profile>\` and Drive for Desktop syncs it. No OAuth, no Cloud
-project, works with several accounts, works offline, zero rate limits, one afternoon of work.
-Loses only self-contained sync on machines without Drive for Desktop.
+Multi-PC rules (Windows 10 and 11, several machines, same stream everywhere):
 
-**Option C — both, behind one `SyncBackend` interface (recommended).** Drive API as the
-sync backend you asked for, Drive-for-Desktop folder as the zero-config fallback (and the
-escape hatch if the work Workspace blocks the OAuth app).
+- Every PC keeps a full local copy; Drive is the meeting point, never the only copy.
+- Each session file records the `device` that created it. A session that is still open
+  is **owned by that device**: other PCs show it read-only with a "take over" action
+  (which closes it there and continues in a new session locally), so two machines never
+  rewrite the same open file.
+- Closed sessions are immutable except for appended records, so they never conflict.
+- Sync runs at start, every ~30 s while a session is open, on session close, and on
+  window focus. It uses the Drive `changes` feed, so a PC that was off for a week
+  catches up in one request.
+- If a conflict still happens (same file changed on both sides), both versions are kept
+  side by side and flagged in the UI; Drive revisions remain as a backstop.
+- Settings and the per-profile user dictionary are synced too, with a per-device
+  override for the hotkey. The search index is never synced; each PC rebuilds it.
+- Windows 10 machines without the WebView2 runtime get a clear message with the
+  download link at first start instead of a blank window.
+
+Rejected for now: a Google-Drive-for-Desktop folder backend (no OAuth, but not every PC
+runs the Drive client and it hides conflicts).
 
 ### 4.6 The session-end agent
 
@@ -292,8 +334,10 @@ Trigger: `Ctrl+Enter` / "End session" button. Pipeline:
    key data, open questions, decisions, ideas, a 3-line summary and a session title.
 3. **Review panel** (human in the loop, default): proposed actions with checkboxes and
    editable titles. "Apply" runs the executors. An "auto-apply" toggle can come later.
-4. **Executors**: v1 = GitHub issues. Later: calendar events, email drafts, a running
-   "facts" notebook per profile, weekly digest, follow-up reminders.
+4. **Executors**: v1 = local actions: write the title and summary into the session,
+   keep a per-profile TODO list (with done/undone state) and a "facts" notebook. Later:
+   GitHub issues (deferred by decision), calendar events, email drafts, weekly digest,
+   follow-up reminders.
 5. **Write-back**: every executed action is appended to the session file (`action`
    records with the issue URL), and the entry shows a small link in the gutter.
 
@@ -309,7 +353,9 @@ Where the agent runs — options:
   app stays dumb; latency is minutes instead of seconds.
 - **Managed Agents** (Anthropic-hosted): overkill for v1, natural if actions multiply.
 
-### 4.7 GitHub integration
+### 4.7 GitHub integration (deferred)
+
+Dropped from the initial scope on 2026-09-07; kept here for when it comes back.
 
 - Auth: a fine-grained personal access token with *Issues: read & write* on the target
   repo(s), one per profile. A GitHub App with the device flow is the nicer, heavier option.
@@ -374,17 +420,17 @@ Each milestone is one pull request and ends with a downloadable Windows build.
 | M2 | Writing aids: Hunspell en/es/gl, underline + suggestions, user dictionary, autocorrect L1 (L2 opt-in), tag autocomplete | Fast, multilingual typing |
 | M3 | Window: global hotkey, opacity modes, always-on-top, tray, profiles and switching | The "bring it in front of me" workflow |
 | M4 | Search and history: FTS index, global search, timeline, Markdown export | Fast access to the past |
-| M5 | Google Drive sync: OAuth `drive.file`, per-profile account, background sync, conflicts; Drive-for-Desktop backend | Backup and multi-PC |
-| M6 | Session agent: Claude extraction with structured output, review panel, GitHub issue creation, write-back | TODOs become issues |
-| M7 | Polish: settings UI, backup/restore, more actions (calendar, digest), auto-update | Daily-driver quality |
+| M5 | Google Drive sync: OAuth `drive.file`, per-profile account, background sync, multi-PC rules, conflicts | The same stream on every PC |
+| M6 | Session agent: Claude extraction with structured output, review panel, local actions (title, summary, TODO list, facts), write-back | Sessions become actionable |
+| M7 | Polish: settings UI, backup/restore, auto-update; later executors (GitHub issues, calendar, digest) | Daily-driver quality |
 
 Order is negotiable: M3 can move before M2 if the hotkey matters more than spell check.
 
 ---
 
-## 6. Questions for you
+## 6. Questions (answered 2026-09-07, kept for the record)
 
-Each question has a default; "defaults" or "defaults except …" is enough.
+The answers are consolidated in section 0.
 
 1. **Layout**: A (page + gutter), B (log), or C (Notepad `.LOG`)? Default: A.
 2. **What gets a timestamp**: each entry created with `Enter` (default), or every sentence
@@ -435,5 +481,6 @@ Each question has a default; "defaults" or "defaults except …" is enough.
 | Transparent window rendering quirks with WebView2 | Prototype in M0, fall back to "glass" mode if whole-window alpha misbehaves |
 | Cannot build Windows binaries in the Linux dev container | GitHub Actions `windows-latest` builds every milestone |
 | Dictionary licences (GPL for `gl_ES`, tri-licence for `es_ES`) | Ship as separate data files with their notices; the app stays Apache-2.0 |
-| Agent creates wrong or duplicate issues | Review panel by default; entry-id markers for idempotency |
+| Agent proposes wrong TODOs or titles | Review panel by default; nothing is written without confirmation |
+| Two PCs write to the same open session | Open sessions are owned by one device; other PCs are read-only until "take over" |
 | Autocorrect "fixes" a correct Galician word into Spanish | Union of dictionaries before correcting; L2 opt-in; one-key revert |
