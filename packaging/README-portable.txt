@@ -39,3 +39,7 @@ Hotkey, opacity, pin and the other options live in config\settings.json.
 
 Sessions also close by themselves after 90 minutes without writing
 (config\settings.json, "inactivity_minutes"; 0 disables it).
+
+Google Drive sync: click the cloud button in the top bar. The setup guide
+is docs/GOOGLE_DRIVE.md in the repository (an OAuth client of your own,
+about ten minutes, once). Each profile signs in with its own account.

@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod drive;
 mod paths;
 mod state;
 mod tray;
@@ -55,6 +56,7 @@ fn main() {
             if let Err(e) = tray::setup(&handle) {
                 eprintln!("tray icon unavailable: {e}");
             }
+            drive::service::start_background(handle.clone());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -96,6 +98,10 @@ fn main() {
             commands::get_autocorrect_rules,
             commands::search,
             commands::session_markdown,
+            commands::drive_status,
+            commands::drive_connect,
+            commands::drive_disconnect,
+            commands::drive_sync_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running todolisto");

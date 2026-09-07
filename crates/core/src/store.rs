@@ -126,10 +126,20 @@ impl Store {
 
     /// The newest session of the profile that has no end record.
     pub fn open_session(&self, profile: &str) -> Result<Option<Session>> {
+        self.open_session_for(profile, None)
+    }
+
+    /// The newest open session this device may write to: sessions started by
+    /// another device (synced from it) stay read-only here until that device
+    /// closes them.
+    pub fn open_session_for(&self, profile: &str, device: Option<&str>) -> Result<Option<Session>> {
         let mut open: Option<Session> = None;
         for path in self.session_files(profile)? {
             let session = parse_file(&path)?;
-            if session.is_open() && open.as_ref().map(|o| session.header.started > o.header.started).unwrap_or(true) {
+            if !session.is_open() || !owned_by(&session, device) {
+                continue;
+            }
+            if open.as_ref().map(|o| session.header.started > o.header.started).unwrap_or(true) {
                 open = Some(session);
             }
         }
@@ -193,11 +203,17 @@ impl Store {
     /// while another session with entries is open; an empty open session is
     /// discarded.
     pub fn reopen_session(&self, profile: &str, id: &str) -> Result<Session> {
+        self.reopen_session_for(profile, id, None)
+    }
+
+    /// Same as [`Store::reopen_session`]; only open sessions owned by
+    /// `device` block the reopening.
+    pub fn reopen_session_for(&self, profile: &str, id: &str, device: Option<&str>) -> Result<Session> {
         let mut session = self.read_session(profile, id)?;
         if session.is_open() {
             return Err(Error::SessionOpen(id.to_string()));
         }
-        if let Some(open) = self.open_session(profile)? {
+        if let Some(open) = self.open_session_for(profile, device)? {
             if open.entries.is_empty() {
                 fsutil::remove_file_if_exists(&self.session_path(&open))?;
             } else {
@@ -214,10 +230,22 @@ impl Store {
     /// `inactivity_minutes`. The end time is the last activity, not `now`.
     /// Returns the closed session, if any. `0` minutes disables the rule.
     pub fn auto_close_if_inactive(&self, profile: &str, now: Timestamp, inactivity_minutes: u32) -> Result<Option<Session>> {
+        self.auto_close_if_inactive_for(profile, None, now, inactivity_minutes)
+    }
+
+    /// Same as [`Store::auto_close_if_inactive`], limited to sessions this
+    /// device owns.
+    pub fn auto_close_if_inactive_for(
+        &self,
+        profile: &str,
+        device: Option<&str>,
+        now: Timestamp,
+        inactivity_minutes: u32,
+    ) -> Result<Option<Session>> {
         if inactivity_minutes == 0 {
             return Ok(None);
         }
-        let Some(open) = self.open_session(profile)? else {
+        let Some(open) = self.open_session_for(profile, device)? else {
             return Ok(None);
         };
         let last = open.last_activity();
@@ -299,6 +327,15 @@ impl Store {
         }
         fsutil::atomic_write(&path, buf.as_bytes())?;
         Ok(path)
+    }
+}
+
+/// Whether `device` may write to `session`: sessions without a device, or
+/// started by this device, are ours; `None` accepts everything.
+pub fn owned_by(session: &Session, device: Option<&str>) -> bool {
+    match (device, session.header.device.as_deref()) {
+        (None, _) | (_, None) => true,
+        (Some(me), Some(owner)) => me == owner,
     }
 }
 

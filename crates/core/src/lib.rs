@@ -10,6 +10,7 @@ pub mod model;
 pub mod search;
 pub mod settings;
 pub mod store;
+pub mod sync;
 pub mod time;
 
 pub use error::{Error, Result};
@@ -18,3 +19,4 @@ pub use model::{Action, EndReason, Entry, Record, Session, SessionEnd, SessionHe
 pub use search::{SearchHit, SearchQuery, SearchResult};
 pub use settings::{Profile, Settings};
 pub use store::Store;
+pub use sync::{SyncReport, SyncState};

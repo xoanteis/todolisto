@@ -547,6 +547,182 @@ mark {
   }
 }
 
+/* Sync */
+.sync-button {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sync-button[data-state="ok"] {
+  color: var(--fg);
+}
+
+.sync-button[data-state="error"] {
+  color: #e5484d;
+  border-color: #e5484d;
+}
+
+.sync-button[data-state="syncing"] {
+  color: var(--accent);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem;
+  z-index: 40;
+  overflow-y: auto;
+}
+
+.modal {
+  width: min(680px, 96vw);
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--faint);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  padding: 0.5rem 1.2rem 1.2rem;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal h2 {
+  font-size: 1.1rem;
+  margin: 0.6rem 0;
+}
+
+.modal h3 {
+  font-size: 0.95rem;
+  margin: 1rem 0 0.4rem;
+}
+
+.modal .close {
+  font: inherit;
+  font-size: 1.4rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.modal-section + .modal-section {
+  border-top: 1px solid var(--faint);
+  margin-top: 0.8rem;
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+.ok {
+  color: #16a34a;
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.pending {
+  color: #d97706;
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.error {
+  color: #e5484d;
+  margin: 0.3rem 0;
+}
+
+.warn {
+  color: #d97706;
+  margin: 0.3rem 0;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0;
+  font-size: 0.85rem;
+}
+
+.field input {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.2rem;
+  flex-wrap: wrap;
+}
+
+.actions button,
+.modal .toggle {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.modal .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.profile-sync {
+  padding: 0.5rem 0;
+}
+
+.profile-sync + .profile-sync {
+  border-top: 1px dashed var(--faint);
+}
+
+.profile-sync-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal code {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  background: var(--panel);
+  padding: 0 0.25rem;
+  border-radius: 3px;
+}
+
 /* Status bar */
 .statusbar {
   display: flex;

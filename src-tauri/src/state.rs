@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use todolisto_core::{Session, Settings, Store, WindowGeometry};
 
+use crate::drive::service::SyncService;
 use crate::paths;
 
 pub struct AppState {
@@ -20,6 +21,9 @@ pub struct AppState {
     /// Parsed sessions per profile. The app is the only writer of the data
     /// folder, so the cache is dropped after every write and reloaded lazily.
     pub catalog: Mutex<HashMap<String, Vec<Session>>>,
+    /// Encrypted Google refresh tokens, per profile.
+    pub secrets_path: PathBuf,
+    pub sync: SyncService,
 }
 
 impl AppState {
@@ -47,6 +51,8 @@ impl AppState {
             geometry_generation: AtomicU64::new(0),
             hotkey_error: Mutex::new(None),
             catalog: Mutex::new(HashMap::new()),
+            secrets_path: config_dir.join("secrets.bin"),
+            sync: SyncService::default(),
         })
     }
 

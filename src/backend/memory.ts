@@ -5,7 +5,18 @@
 import { renderMarkdown, searchSessions } from "../model/search";
 import { extractTags } from "../model/tags";
 import { ulid } from "../model/ulid";
-import { MAX_OPACITY, MIN_OPACITY, type Backend, type EndReason, type Entry, type Session, type SessionSummary, type Settings, type WindowState } from "./types";
+import {
+  MAX_OPACITY,
+  MIN_OPACITY,
+  type Backend,
+  type DriveStatus,
+  type EndReason,
+  type Entry,
+  type Session,
+  type SessionSummary,
+  type Settings,
+  type WindowState,
+} from "./types";
 
 const STORAGE_KEY = "todolisto.memory.v1";
 
@@ -20,8 +31,8 @@ export function defaultSettings(): Settings {
     version: 1,
     active_profile: "work",
     profiles: [
-      { id: "work", name: "Work", color: "#3b82f6" },
-      { id: "personal", name: "Personal", color: "#10b981" },
+      { id: "work", name: "Work", color: "#3b82f6", drive: false },
+      { id: "personal", name: "Personal", color: "#10b981", drive: false },
     ],
     inactivity_minutes: 90,
     languages: ["en", "es", "gl"],
@@ -34,6 +45,8 @@ export function defaultSettings(): Settings {
     hide_on_escape: true,
     spellcheck: true,
     autocorrect: "safe",
+    google_client_id: "",
+    google_client_secret: "",
   };
 }
 
@@ -213,6 +226,37 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     },
     async sessionMarkdown(profile, id) {
       return renderMarkdown(find(profile, id));
+    },
+    async driveStatus(profile): Promise<DriveStatus> {
+      const s = data.settings;
+      return {
+        configured: Boolean(s.google_client_id && s.google_client_secret),
+        enabled: s.profiles.find((p) => p.id === profile)?.drive ?? false,
+        connected: false,
+        account: null,
+        syncing: false,
+        last_sync: null,
+        last_error: null,
+        last_report: null,
+      };
+    },
+    async driveConnect() {
+      throw new Error("Google sign-in is only available in the desktop app");
+    },
+    async driveDisconnect(profile) {
+      const p = data.settings.profiles.find((x) => x.id === profile);
+      if (p) p.drive = false;
+      persist();
+      return this.driveStatus(profile);
+    },
+    async driveSyncNow() {
+      throw new Error("Sync is only available in the desktop app");
+    },
+    onSyncStatus() {
+      return () => {};
+    },
+    onDataChanged() {
+      return () => {};
     },
     async getStream(profile, now) {
       autoClose(profile, now);

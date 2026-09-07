@@ -1,6 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
-import type { Backend } from "./types";
+import type { Backend, DataChanged, DriveStatus } from "./types";
+
+function subscribe<T>(event: string, handler: (payload: T) => void): () => void {
+  const pending = listen<T>(event, (e) => handler(e.payload));
+  return () => {
+    void pending.then((unlisten) => unlisten());
+  };
+}
 
 // Argument names are snake_case on both sides (`rename_all = "snake_case"`).
 export const tauriBackend: Backend = {
@@ -17,6 +25,12 @@ export const tauriBackend: Backend = {
   getAutocorrectRules: (profile) => invoke("get_autocorrect_rules", { profile }),
   search: (profile, query) => invoke("search", { profile, query }),
   sessionMarkdown: (profile, session_id) => invoke("session_markdown", { profile, session_id }),
+  driveStatus: (profile) => invoke("drive_status", { profile }),
+  driveConnect: (profile) => invoke("drive_connect", { profile }),
+  driveDisconnect: (profile) => invoke("drive_disconnect", { profile }),
+  driveSyncNow: (profile) => invoke("drive_sync_now", { profile }),
+  onSyncStatus: (handler) => subscribe<{ profile: string; status: DriveStatus }>("sync:status", (e) => handler(e.profile, e.status)),
+  onDataChanged: (handler) => subscribe<DataChanged>("data:changed", handler),
   getStream: (profile, now) => invoke("get_stream", { profile, now }),
   readSession: (profile, session_id) => invoke("read_session", { profile, session_id }),
   startSession: (profile, started) => invoke("start_session", { profile, started }),

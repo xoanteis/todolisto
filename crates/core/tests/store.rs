@@ -207,3 +207,22 @@ fn user_dictionary_and_autocorrect_rules_per_profile() {
     assert_eq!(rules["tbd"], "to be defined");
     assert_eq!(rules["qeu"], "que");
 }
+
+#[test]
+fn open_sessions_started_elsewhere_are_not_ours() {
+    let (_dir, store) = store();
+    let theirs = store
+        .create_session(NewSession { device: Some("pc-2".into()), ..new_session("work", "2026-09-07T09:00:00+02:00") })
+        .unwrap();
+    store
+        .save_entries("work", theirs.id(), vec![entry("a", "2026-09-07T09:00:00+02:00", "on the other pc")])
+        .unwrap();
+    assert_eq!(store.open_session("work").unwrap().unwrap().id(), theirs.id(), "no device filter: any open session");
+    assert!(store.open_session_for("work", Some("pc-1")).unwrap().is_none());
+    assert!(store
+        .auto_close_if_inactive_for("work", Some("pc-1"), ts("2026-09-08T09:00:00+02:00"), 90)
+        .unwrap()
+        .is_none());
+    let mine = store.create_session(new_session("work", "2026-09-07T10:00:00+02:00")).unwrap();
+    assert_eq!(store.open_session_for("work", Some("pc-1")).unwrap().unwrap().id(), mine.id());
+}

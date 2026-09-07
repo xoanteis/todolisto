@@ -15,6 +15,9 @@ pub struct Profile {
     pub id: String,
     pub name: String,
     pub color: String,
+    /// Sync this profile with the Google Drive of a connected account.
+    #[serde(default)]
+    pub drive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,6 +48,10 @@ pub struct Settings {
     pub spellcheck: bool,
     /// `off`, `safe` (curated typo lists) or `aggressive` (dictionary based).
     pub autocorrect: String,
+    /// OAuth client of type "Desktop app" created in Google Cloud Console.
+    /// Shared by every profile; each profile signs in with its own account.
+    pub google_client_id: String,
+    pub google_client_secret: String,
 }
 
 impl Default for Settings {
@@ -53,8 +60,8 @@ impl Default for Settings {
             version: 1,
             active_profile: "work".to_string(),
             profiles: vec![
-                Profile { id: "work".into(), name: "Work".into(), color: "#3b82f6".into() },
-                Profile { id: "personal".into(), name: "Personal".into(), color: "#10b981".into() },
+                Profile { id: "work".into(), name: "Work".into(), color: "#3b82f6".into(), drive: false },
+                Profile { id: "personal".into(), name: "Personal".into(), color: "#10b981".into(), drive: false },
             ],
             inactivity_minutes: 90,
             languages: vec!["en".into(), "es".into(), "gl".into()],
@@ -67,6 +74,8 @@ impl Default for Settings {
             hide_on_escape: true,
             spellcheck: true,
             autocorrect: "safe".to_string(),
+            google_client_id: String::new(),
+            google_client_secret: String::new(),
         }
     }
 }
@@ -116,6 +125,8 @@ impl Settings {
         if !["off", "safe", "aggressive"].contains(&self.autocorrect.as_str()) {
             self.autocorrect = "safe".to_string();
         }
+        self.google_client_id = self.google_client_id.trim().to_string();
+        self.google_client_secret = self.google_client_secret.trim().to_string();
         self.languages.retain(|l| ["en", "es", "gl"].contains(&l.as_str()));
         if self.languages.is_empty() {
             self.languages = Settings::default().languages;

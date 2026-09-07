@@ -5,10 +5,11 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use todolisto_core::settings::{clamp_opacity, is_safe_id};
-use todolisto_core::store::NewSession;
+use todolisto_core::store::{owned_by, NewSession};
 use todolisto_core::time::{local_tz_name, parse, Timestamp};
 use todolisto_core::{markdown, search, EndReason, Entry, SearchQuery, SearchResult, Session, SessionSummary, Settings};
 
+use crate::drive::service::{self as drive, DriveStatus};
 use crate::state::AppState;
 use crate::window;
 
@@ -138,15 +139,20 @@ pub fn hide_window(app: AppHandle) {
 pub fn get_stream(state: State<'_, AppState>, profile: String, now: String) -> CmdResult<StreamState> {
     check_profile(&profile)?;
     let now = parse_ts(&now, "now")?;
+    let device = state.device_name();
     let closed = state
         .store
-        .auto_close_if_inactive(&profile, now, inactivity_minutes(&state))
+        .auto_close_if_inactive_for(&profile, Some(&device), now, inactivity_minutes(&state))
         .map_err(|e| e.to_string())?;
     if closed.is_some() {
         state.invalidate(&profile);
     }
     let sessions = state.sessions(&profile)?;
-    let open = sessions.iter().filter(|s| s.is_open()).max_by_key(|s| s.header.started).cloned();
+    let open = sessions
+        .iter()
+        .filter(|s| s.is_open() && owned_by(s, Some(&device)))
+        .max_by_key(|s| s.header.started)
+        .cloned();
     Ok(StreamState { open, sessions: sessions.iter().map(Session::summary).collect() })
 }
 
@@ -165,7 +171,8 @@ pub fn read_session(state: State<'_, AppState>, profile: String, session_id: Str
 pub fn start_session(state: State<'_, AppState>, profile: String, started: String) -> CmdResult<Session> {
     check_profile(&profile)?;
     let started = parse_ts(&started, "start")?;
-    if let Some(open) = state.store.open_session(&profile).map_err(|e| e.to_string())? {
+    let device = state.device_name();
+    if let Some(open) = state.store.open_session_for(&profile, Some(&device)).map_err(|e| e.to_string())? {
         return Ok(open);
     }
     let created = state
@@ -200,6 +207,7 @@ pub fn save_entries(
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn end_session(
+    app: AppHandle,
     state: State<'_, AppState>,
     profile: String,
     session_id: String,
@@ -213,15 +221,19 @@ pub fn end_session(
         .end_session(&profile, &session_id, ended, reason)
         .map_err(|e| e.to_string())?;
     state.invalidate(&profile);
+    if drive::syncable_profiles(&state).iter().any(|p| p == &profile) {
+        drive::sync_in_background(&app, &profile);
+    }
     Ok(closed)
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn reopen_session(state: State<'_, AppState>, profile: String, session_id: String) -> CmdResult<Session> {
     check_profile(&profile)?;
+    let device = state.device_name();
     let reopened = state
         .store
-        .reopen_session(&profile, &session_id)
+        .reopen_session_for(&profile, &session_id, Some(&device))
         .map_err(|e| e.to_string())?;
     state.invalidate(&profile);
     Ok(reopened)
@@ -233,9 +245,10 @@ pub fn reopen_session(state: State<'_, AppState>, profile: String, session_id: S
 pub fn check_inactivity(state: State<'_, AppState>, profile: String, now: String) -> CmdResult<Option<Session>> {
     check_profile(&profile)?;
     let now = parse_ts(&now, "now")?;
+    let device = state.device_name();
     let closed = state
         .store
-        .auto_close_if_inactive(&profile, now, inactivity_minutes(&state))
+        .auto_close_if_inactive_for(&profile, Some(&device), now, inactivity_minutes(&state))
         .map_err(|e| e.to_string())?;
     if closed.is_some() {
         state.invalidate(&profile);
@@ -278,4 +291,36 @@ pub fn session_markdown(state: State<'_, AppState>, profile: String, session_id:
         .find(|s| s.header.id == session_id)
         .ok_or_else(|| format!("session {session_id} not found"))?;
     Ok(markdown::render(&session))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn drive_status(state: State<'_, AppState>, profile: String) -> CmdResult<DriveStatus> {
+    check_profile(&profile)?;
+    Ok(state.sync.status(&state, &profile))
+}
+
+/// Opens the browser for the Google sign-in and waits for it (up to five minutes).
+#[tauri::command(rename_all = "snake_case")]
+pub async fn drive_connect(app: AppHandle, profile: String) -> CmdResult<DriveStatus> {
+    check_profile(&profile)?;
+    let handle = app.clone();
+    let status = tauri::async_runtime::spawn_blocking(move || drive::connect(&handle, &profile))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(status)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn drive_disconnect(app: AppHandle, profile: String) -> CmdResult<DriveStatus> {
+    check_profile(&profile)?;
+    drive::disconnect(&app, &profile)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn drive_sync_now(app: AppHandle, profile: String) -> CmdResult<todolisto_core::SyncReport> {
+    check_profile(&profile)?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || drive::sync(&handle, &profile))
+        .await
+        .map_err(|e| e.to_string())?
 }

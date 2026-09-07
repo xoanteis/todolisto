@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 chrono = { workspace = true }
 iana-time-zone = "0.1"
+md5 = "0.8.1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

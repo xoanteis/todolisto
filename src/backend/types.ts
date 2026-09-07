@@ -61,6 +61,7 @@ export interface Profile {
   id: string;
   name: string;
   color: string;
+  drive: boolean;
 }
 
 export interface Settings {
@@ -78,6 +79,32 @@ export interface Settings {
   hide_on_escape: boolean;
   spellcheck: boolean;
   autocorrect: "off" | "safe" | "aggressive";
+  google_client_id: string;
+  google_client_secret: string;
+}
+
+export interface SyncReport {
+  pulled: string[];
+  pushed: string[];
+  conflicts: string[];
+  unchanged: number;
+}
+
+export interface DriveStatus {
+  configured: boolean;
+  enabled: boolean;
+  connected: boolean;
+  account: string | null;
+  syncing: boolean;
+  last_sync: string | null;
+  last_error: string | null;
+  last_report: SyncReport | null;
+}
+
+export interface DataChanged {
+  profile: string;
+  sessions: boolean;
+  dictionary: boolean;
 }
 
 export interface WindowState {
@@ -122,6 +149,15 @@ export interface Backend {
   getAutocorrectRules(profile: string): Promise<Record<string, string>>;
   search(profile: string, query: SearchQuery): Promise<SearchResult>;
   sessionMarkdown(profile: string, sessionId: string): Promise<string>;
+  driveStatus(profile: string): Promise<DriveStatus>;
+  /** Opens the browser for the Google sign-in; resolves when it completes. */
+  driveConnect(profile: string): Promise<DriveStatus>;
+  driveDisconnect(profile: string): Promise<DriveStatus>;
+  driveSyncNow(profile: string): Promise<SyncReport>;
+  /** Live sync status; returns the unsubscribe function. */
+  onSyncStatus(handler: (profile: string, status: DriveStatus) => void): () => void;
+  /** Files of a profile changed on disk because of a sync. */
+  onDataChanged(handler: (event: DataChanged) => void): () => void;
   /** Applies the inactivity rule, then returns the open session and the list. */
   getStream(profile: string, now: string): Promise<StreamState>;
   readSession(profile: string, sessionId: string): Promise<Session>;

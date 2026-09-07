@@ -48,6 +48,7 @@ export function SessionList({ sessions, expanded, onToggle, onCopyMarkdown, focu
           `${s.entries} ${s.entries === 1 ? "entry" : "entries"}`,
           s.todos ? `${s.todos} ${s.todos === 1 ? "todo" : "todos"}` : null,
           s.reason === "inactivity" ? "auto-closed" : null,
+          s.open ? `open on ${s.device ?? "another PC"}` : null,
         ]
           .filter(Boolean)
           .join(" · ");

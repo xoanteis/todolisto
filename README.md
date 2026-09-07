@@ -8,14 +8,14 @@ Scoping plan, decisions and roadmap: [docs/PLAN.md](docs/PLAN.md).
 
 ## Status
 
-Milestones M1 to M4 of the plan: timestamped entries, multi-line entries,
+Milestones M1 to M5 of the plan: timestamped entries, multi-line entries,
 sessions with manual and automatic close, per-profile storage, history of
 past sessions, spell check in English, Spanish and Galician with
 suggestions and a personal dictionary, safe autocorrect, global hotkey
 (Ctrl+Alt+N), window opacity, pin on top, tray icon, remembered window
 position, single instance, search across all notes with tag and date
-filters, copy a session as Markdown. Drive sync and the session agent
-come in the next milestones.
+filters, copy a session as Markdown, Google Drive sync per profile with
+conflict copies. The session agent comes next.
 
 ## Keys
 
@@ -37,6 +37,13 @@ come in the next milestones.
 The close button hides the window to the tray (`close_to_tray`); quit from
 the tray menu. Sessions also close by themselves after 90 minutes without
 writing (`inactivity_minutes`, 0 disables it).
+
+## Sync
+
+Each profile can sync with its own Google account through the Drive API
+(`todolisto/<profile>` in that Drive): sessions, Markdown copies, the
+personal dictionary and autocorrect rules, every 30 seconds and when a
+session ends. Setup and behaviour: [docs/GOOGLE_DRIVE.md](docs/GOOGLE_DRIVE.md).
 
 ## Search
 
@@ -79,8 +86,10 @@ everything in the exe folder; otherwise the data lives in
 `%APPDATA%\todolisto`. `TODOLISTO_HOME=<dir>` overrides both.
 
 ```
-config/settings.json                                   profiles and preferences
+config/settings.json                                   profiles and preferences (incl. the Google OAuth client)
 config/window.json                                     last window position on this machine
+config/secrets.bin                                     Google refresh tokens, DPAPI-encrypted, never synced
+cache/sync/<profile>.json                              sync state (safe to delete)
 data/<profile>/dictionary.txt                          words added to the spell checker
 data/<profile>/autocorrect.txt                         personal autocorrect rules (wrong=right)
 data/<profile>/<year>/<YYYY-MM-DDTHHMMSS>_<id>.jsonl   one file per session

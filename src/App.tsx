@@ -7,6 +7,7 @@ import {
   OPACITY_STEP,
   errorMessage,
   type AppInfo,
+  type DriveStatus,
   type Entry,
   type Session,
   type SessionSummary,
@@ -16,6 +17,7 @@ import {
 import { Header } from "./components/Header";
 import { SearchPanel, type SearchScope } from "./components/SearchPanel";
 import { SessionList, type Expanded } from "./components/SessionList";
+import { SyncDialog } from "./components/SyncDialog";
 import { Editor, type EditorHandle, type SpellOptions } from "./editor/Editor";
 import type { SearchHit, SearchQuery } from "./model/search";
 import { formatDay, nowIso, timeOf } from "./model/time";
@@ -39,6 +41,9 @@ export function App() {
   const [focusTarget, setFocusTarget] = useState<{ sessionId: string; entryId: string; nonce: number } | null>(null);
   const [searchScope, setSearchScope] = useState<SearchScope | null>(null);
   const editorRef = useRef<EditorHandle>(null);
+  const [driveStatuses, setDriveStatuses] = useState<Record<string, DriveStatus>>({});
+  const [syncDialog, setSyncDialog] = useState(false);
+  const [syncBusy, setSyncBusy] = useState<string | null>(null);
   const [profile, setProfile] = useState("");
   const [open, setOpen] = useState<Session | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -141,6 +146,143 @@ export function App() {
       }
     })();
   }, [loadStream, showToast]);
+
+  const loadDriveStatuses = useCallback(async (profiles: string[]) => {
+    const entries = await Promise.all(profiles.map(async (id) => [id, await backend.driveStatus(id)] as const));
+    setDriveStatuses((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+  }, []);
+
+  useEffect(() => {
+    if (!settings) return;
+    loadDriveStatuses(settings.profiles.map((p) => p.id)).catch((e) => console.warn("drive status", e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.profiles.map((p) => p.id).join(","), loadDriveStatuses]);
+
+  /** Re-reads the history after files changed on disk, leaving the editor alone. */
+  const refreshSessions = useCallback(async () => {
+    const p = profileRef.current;
+    const stream = await backend.getStream(p, nowIso());
+    if (profileRef.current !== p) return;
+    setSessions(stream.sessions);
+    if (!openRef.current && stream.open) {
+      setOpenSession(stream.open);
+      setDocKey(`${p}:${stream.open.header.id}:${Date.now()}`);
+    }
+    setExpanded((prev) => {
+      const ids = Object.keys(prev);
+      void Promise.all(ids.map((id) => backend.readSession(p, id).catch(() => null))).then((loaded) => {
+        setExpanded((current) => {
+          const next = { ...current };
+          ids.forEach((id, i) => {
+            if (loaded[i] && next[id]) next[id] = loaded[i];
+          });
+          return next;
+        });
+      });
+      return prev;
+    });
+  }, [setOpenSession]);
+
+  useEffect(() => {
+    const unsubscribeStatus = backend.onSyncStatus((p, status) => setDriveStatuses((prev) => ({ ...prev, [p]: status })));
+    const unsubscribeData = backend.onDataChanged((event) => {
+      if (event.profile !== profileRef.current) return;
+      void refreshSessions().catch((e) => console.warn("refresh after sync", e));
+      if (event.dictionary) {
+        Promise.all([backend.getUserWords(event.profile), backend.getAutocorrectRules(event.profile)])
+          .then(([words, personal]) => {
+            setUserWords(words);
+            spell.setUserWords(words);
+            setRules({ ...BUILTIN_RULES, ...personal });
+          })
+          .catch((e) => console.warn("reload dictionary", e));
+      }
+    });
+    return () => {
+      unsubscribeStatus();
+      unsubscribeData();
+    };
+  }, [refreshSessions, spell]);
+
+  const saveClient = useCallback(
+    async (clientId: string, clientSecret: string) => {
+      if (!settings) return;
+      try {
+        const saved = await backend.saveSettings({ ...settings, google_client_id: clientId, google_client_secret: clientSecret });
+        setSettings(saved);
+        await loadDriveStatuses(saved.profiles.map((p) => p.id));
+        showToast("Google client saved");
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [settings, loadDriveStatuses, showToast],
+  );
+
+  const toggleDrive = useCallback(
+    async (p: string, enabled: boolean) => {
+      if (!settings) return;
+      try {
+        const saved = await backend.saveSettings({ ...settings, profiles: settings.profiles.map((x) => (x.id === p ? { ...x, drive: enabled } : x)) });
+        setSettings(saved);
+        await loadDriveStatuses([p]);
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [settings, loadDriveStatuses, showToast],
+  );
+
+  const connectDrive = useCallback(
+    async (p: string) => {
+      setSyncBusy(p);
+      try {
+        const status = await backend.driveConnect(p);
+        setDriveStatuses((prev) => ({ ...prev, [p]: status }));
+        setSettings(await backend.getSettings());
+        showToast(`${status.account ?? "Google account"} connected · first sync running`);
+        backend.driveSyncNow(p).catch((e) => showToast(errorMessage(e)));
+      } catch (e) {
+        showToast(errorMessage(e));
+      } finally {
+        setSyncBusy(null);
+      }
+    },
+    [showToast],
+  );
+
+  const disconnectDrive = useCallback(
+    async (p: string) => {
+      try {
+        const status = await backend.driveDisconnect(p);
+        setDriveStatuses((prev) => ({ ...prev, [p]: status }));
+        setSettings(await backend.getSettings());
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [showToast],
+  );
+
+  const syncNow = useCallback(
+    async (p: string) => {
+      setSyncBusy(p);
+      try {
+        const report = await backend.driveSyncNow(p);
+        const parts = [
+          report.pulled.length ? `${report.pulled.length} pulled` : null,
+          report.pushed.length ? `${report.pushed.length} pushed` : null,
+          report.conflicts.length ? `${report.conflicts.length} conflict copies` : null,
+        ].filter(Boolean);
+        showToast(parts.length ? `Sync done: ${parts.join(", ")}` : "Sync done: everything was up to date");
+      } catch (e) {
+        showToast(errorMessage(e));
+      } finally {
+        setSyncBusy(null);
+      }
+    },
+    [showToast],
+  );
 
   const persist = useCallback(
     async (p: string, entries: Entry[]) => {
@@ -248,10 +390,16 @@ export function App() {
 
   const searchOpenRef = useRef(false);
   searchOpenRef.current = searchScope !== null;
+  const syncDialogRef = useRef(false);
+  syncDialogRef.current = syncDialog;
 
   const hideWindow = useCallback((): boolean => {
     if (searchOpenRef.current) {
       setSearchScope(null);
+      return true;
+    }
+    if (syncDialogRef.current) {
+      setSyncDialog(false);
       return true;
     }
     if (!winRef.current?.hide_on_escape) return false;
@@ -396,7 +544,7 @@ export function App() {
     return <div className="loading">Loading…</div>;
   }
 
-  const closed = sessions.filter((s) => !s.open);
+  const closed = sessions.filter((s) => !s.open || s.id !== open?.header.id);
   const spellOpts: SpellOptions = { enabled: settings.spellcheck && spellStatus === "ready", level: settings.autocorrect, rules };
   const spellLabel =
     !settings.spellcheck || spellStatus === "off"
@@ -424,7 +572,22 @@ export function App() {
         onPin={(pinned) => void setPinned(pinned)}
         onOpacity={(percent) => void setOpacity(percent)}
         onSearch={() => openSearch("all")}
+        drive={driveStatuses[profile] ?? null}
+        onSync={() => setSyncDialog(true)}
       />
+      {syncDialog && (
+        <SyncDialog
+          settings={settings}
+          statuses={driveStatuses}
+          busy={syncBusy}
+          onSaveClient={(id, secret) => void saveClient(id, secret)}
+          onToggle={(p, enabled) => void toggleDrive(p, enabled)}
+          onConnect={(p) => void connectDrive(p)}
+          onDisconnect={(p) => void disconnectDrive(p)}
+          onSyncNow={(p) => void syncNow(p)}
+          onClose={() => setSyncDialog(false)}
+        />
+      )}
       {searchScope && (
         <SearchPanel
           scope={searchScope}

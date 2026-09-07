@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { MAX_OPACITY, MIN_OPACITY, OPACITY_STEP, type Profile, type Session, type WindowState } from "../backend/types";
+import { MAX_OPACITY, MIN_OPACITY, OPACITY_STEP, type DriveStatus, type Profile, type Session, type WindowState } from "../backend/types";
 import { timeOf } from "../model/time";
 
 interface Props {
@@ -15,10 +15,21 @@ interface Props {
   onPin(pinned: boolean): void;
   onOpacity(percent: number): void;
   onSearch(): void;
+  drive: DriveStatus | null;
+  onSync(): void;
 }
 
-export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity, onSearch }: Props) {
+function driveLabel(status: DriveStatus | null): { text: string; state: string } {
+  if (!status || !status.connected || !status.enabled) return { text: "☁ off", state: "off" };
+  if (status.last_error) return { text: "☁ error", state: "error" };
+  if (status.syncing) return { text: "☁ syncing…", state: "syncing" };
+  if (status.last_sync) return { text: `☁ ${timeOf(status.last_sync)}`, state: "ok" };
+  return { text: "☁ connected", state: "ok" };
+}
+
+export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity, onSearch, drive, onSync }: Props) {
   const color = profiles.find((p) => p.id === profile)?.color ?? "#888";
+  const sync = driveLabel(drive);
   const count = open?.entries.length ?? 0;
   const status = open
     ? `Session open since ${timeOf(open.header.started)} · ${count} ${count === 1 ? "entry" : "entries"}`
@@ -40,6 +51,9 @@ export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEn
       <div className="spacer" />
       <button type="button" className="search-button" onClick={onSearch} title="Search all notes (Ctrl+Shift+F)">
         Search
+      </button>
+      <button type="button" className="sync-button" data-state={sync.state} onClick={onSync} title={drive?.last_error ?? "Google Drive sync"}>
+        {sync.text}
       </button>
       <span className="session-status">{status}</span>
       {open ? (
