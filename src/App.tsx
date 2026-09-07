@@ -43,6 +43,7 @@ export function App() {
   const [spellStatus, setSpellStatus] = useState<SpellStatus>("idle");
   const [userWords, setUserWords] = useState<string[]>([]);
   const [rules, setRules] = useState<Record<string, string>>(BUILTIN_RULES);
+  const [tags, setTags] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Expanded>({});
   const [focusTarget, setFocusTarget] = useState<{ sessionId: string; entryId: string; nonce: number } | null>(null);
   const [searchScope, setSearchScope] = useState<SearchScope | null>(null);
@@ -94,11 +95,12 @@ export function App() {
       setSessions(stream.sessions);
       setExpanded({});
       setDocKey(`${p}:${stream.open?.header.id ?? "new"}:${Date.now()}`);
-      void Promise.all([backend.agentPending(p), backend.agentDigest(p)])
-        .then(([pendingList, digestData]) => {
+      void Promise.all([backend.agentPending(p), backend.agentDigest(p), backend.listTags(p)])
+        .then(([pendingList, digestData, tagList]) => {
           if (profileRef.current !== p) return;
           setPending(pendingList);
           setDigest(digestData);
+          setTags(tagList.map((t) => t.tag));
         })
         .catch((e) => console.warn("agent state", e));
     },
@@ -820,6 +822,7 @@ export function App() {
             handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity, onAddWord: addWord, onSearch: openSearch, onDigest: () => setDigestOpen(true) }}
             spell={spell}
             spellOptions={spellOpts}
+            tags={tags}
           />
         </section>
       </main>

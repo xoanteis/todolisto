@@ -7,7 +7,7 @@ use tauri::{AppHandle, State};
 use todolisto_core::settings::{clamp_opacity, is_safe_id};
 use todolisto_core::store::{owned_by, NewSession};
 use todolisto_core::time::{local_tz_name, parse, Timestamp};
-use todolisto_core::{markdown, search, EndReason, Entry, SearchQuery, SearchResult, Session, SessionSummary, Settings};
+use todolisto_core::{markdown, search, EndReason, Entry, SearchQuery, SearchResult, Session, SessionSummary, Settings, TagCount};
 
 use todolisto_core::agent::{Proposal, Selection};
 use todolisto_core::Digest;
@@ -289,6 +289,12 @@ pub fn search(state: State<'_, AppState>, profile: String, query: SearchQuery) -
     check_profile(&profile)?;
     let sessions = state.sessions(&profile)?;
     Ok(search::search(&sessions, &query))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn list_tags(state: State<'_, AppState>, profile: String) -> CmdResult<Vec<TagCount>> {
+    check_profile(&profile)?;
+    Ok(search::tag_counts(&state.sessions(&profile)?))
 }
 
 /// The Markdown rendering of a session, as written next to closed ones.

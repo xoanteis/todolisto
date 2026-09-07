@@ -24,6 +24,7 @@ export const tauriBackend: Backend = {
   addUserWord: (profile, word) => invoke("add_user_word", { profile, word }),
   getAutocorrectRules: (profile) => invoke("get_autocorrect_rules", { profile }),
   search: (profile, query) => invoke("search", { profile, query }),
+  listTags: (profile) => invoke("list_tags", { profile }),
   sessionMarkdown: (profile, session_id) => invoke("session_markdown", { profile, session_id }),
   driveStatus: (profile) => invoke("drive_status", { profile }),
   driveConnect: (profile) => invoke("drive_connect", { profile }),

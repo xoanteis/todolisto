@@ -171,6 +171,8 @@ export interface Backend {
   /** Personal autocorrect rules (`wrong` → `right`), lower-cased keys. */
   getAutocorrectRules(profile: string): Promise<Record<string, string>>;
   search(profile: string, query: SearchQuery): Promise<SearchResult>;
+  /** Tags used in the profile, most used first. */
+  listTags(profile: string): Promise<{ tag: string; count: number }[]>;
   sessionMarkdown(profile: string, sessionId: string): Promise<string>;
   driveStatus(profile: string): Promise<DriveStatus>;
   /** Opens the browser for the Google sign-in; resolves when it completes. */

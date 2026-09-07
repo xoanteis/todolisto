@@ -254,6 +254,11 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     async sessionMarkdown(profile, id) {
       return renderMarkdown(find(profile, id));
     },
+    async listTags(profile) {
+      const counts = new Map<string, number>();
+      for (const session of list(profile)) for (const e of session.entries) for (const t of e.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+      return [...counts.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+    },
     async driveStatus(profile): Promise<DriveStatus> {
       const s = data.settings;
       return {

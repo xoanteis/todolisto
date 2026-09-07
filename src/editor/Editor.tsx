@@ -7,6 +7,7 @@ import { EditorView } from "prosemirror-view";
 
 import type { Entry } from "../backend/types";
 import { SuggestionMenu } from "../components/SuggestionMenu";
+import { TagMenu } from "../components/TagMenu";
 import type { AutocorrectLevel } from "../spell/autocorrect";
 import type { SpellClient } from "../spell/client";
 import { goToLive, insertTab, splitEntry } from "./commands";
@@ -14,6 +15,7 @@ import { FLASH_MS, flashKey, flashPlugin } from "./flashPlugin";
 import { dayPlugin, stampPlugin } from "./plugins";
 import { docToEntries, entriesToDoc } from "./serialize";
 import { spellKey, spellPlugin, type SpellMenu } from "./spellPlugin";
+import { acceptTag, tagPlugin, type TagMenu as TagMenuState } from "./tagPlugin";
 
 export interface EditorHandlers {
   onChange(entries: Entry[]): void;
@@ -50,9 +52,11 @@ interface Props {
   handlers: EditorHandlers;
   spell: SpellClient;
   spellOptions: SpellOptions;
+  /** Known tags of the profile, most used first. */
+  tags: string[];
 }
 
-export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries, docKey, handlers, spell, spellOptions }, ref) {
+export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries, docKey, handlers, spell, spellOptions, tags }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const handlersRef = useRef(handlers);
@@ -62,6 +66,9 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
   const spellOptionsRef = useRef(spellOptions);
   spellOptionsRef.current = spellOptions;
   const [menu, setMenu] = useState<SpellMenu | null>(null);
+  const [tagMenu, setTagMenu] = useState<TagMenuState | null>(null);
+  const tagsRef = useRef(tags);
+  tagsRef.current = tags;
 
   useImperativeHandle(ref, () => ({
     focusEntry(entryId) {
@@ -94,6 +101,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
     const state = EditorState.create({
       doc: entriesToDoc(entriesRef.current),
       plugins: [
+        tagPlugin({ tags: () => tagsRef.current, onMenu: setTagMenu }),
         keymap({
           Enter: splitBlock,
           "Shift-Enter": splitEntry,
@@ -205,6 +213,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
   return (
     <div className="editor-wrap" onMouseDown={focusEnd} ref={hostRef}>
       {menu && <SuggestionMenu menu={menu} onPick={pick} onAdd={addWord} onIgnore={() => closeMenu({ ignore: menu.word })} />}
+      {tagMenu && <TagMenu menu={tagMenu} onPick={(tag) => viewRef.current && acceptTag(viewRef.current, tagMenu, tag)} />}
     </div>
   );
 });

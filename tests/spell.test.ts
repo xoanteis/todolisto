@@ -55,3 +55,13 @@ describe("autocorrect", () => {
     expect(editDistance("kitten", "sitting")).toBe(3);
   });
 });
+
+describe("tag completion", () => {
+  it("offers known tags first, then standard ones, by prefix", async () => {
+    const { tagCandidates } = await import("../src/editor/tagPlugin");
+    expect(tagCandidates("", ["acme", "todo"])).toEqual(["acme", "todo", "data", "q", "idea", "decision"]);
+    expect(tagCandidates("d", ["acme", "todo"])).toEqual(["data", "decision"]);
+    expect(tagCandidates("TO", ["todo"])).toEqual(["todo"]);
+    expect(tagCandidates("zz", ["todo"])).toEqual([]);
+  });
+});

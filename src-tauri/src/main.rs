@@ -98,6 +98,7 @@ fn main() {
             commands::add_user_word,
             commands::get_autocorrect_rules,
             commands::search,
+            commands::list_tags,
             commands::session_markdown,
             commands::drive_status,
             commands::drive_connect,

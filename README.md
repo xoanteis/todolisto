@@ -31,6 +31,7 @@ before they are saved.
 | Ctrl+Alt+N | Show or hide the window from anywhere (`hotkey` in settings.json) |
 | Esc | Hide the window (`hide_on_escape`) |
 | Ctrl+Shift+Up / Down | Window opacity in 5 % steps (`opacity`, 30 to 100) |
+| # | Tag completion: the standard tags (`#todo #data #q #idea #decision`) and the ones you used before; Tab or Enter completes |
 | Right click or Ctrl+. | Suggestions for a misspelled word, add it to the dictionary, or ignore it |
 | Ctrl+Shift+F | Search everything (`#tag` filters, accents optional); Enter jumps to the note |
 | Ctrl+F | Search inside the open session |

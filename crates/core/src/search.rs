@@ -54,6 +54,27 @@ pub struct SearchResult {
 
 pub const DEFAULT_LIMIT: usize = 200;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TagCount {
+    pub tag: String,
+    pub count: usize,
+}
+
+/// Every tag used across sessions, most used first, then alphabetical.
+pub fn tag_counts(sessions: &[Session]) -> Vec<TagCount> {
+    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for session in sessions {
+        for entry in &session.entries {
+            for tag in &entry.tags {
+                *counts.entry(tag.clone()).or_insert(0) += 1;
+            }
+        }
+    }
+    let mut out: Vec<TagCount> = counts.into_iter().map(|(tag, count)| TagCount { tag, count }).collect();
+    out.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.tag.cmp(&b.tag)));
+    out
+}
+
 /// Lower-cases and strips diacritics one character at a time, so that the
 /// result has exactly one char per input char and offsets stay aligned.
 pub fn fold(text: &str) -> String {
@@ -275,6 +296,14 @@ mod tests {
         assert_eq!(mixed.total, 2);
         let none = search(&corpus(), &SearchQuery { text: "#idea maria".into(), ..Default::default() });
         assert_eq!(none.total, 0);
+    }
+
+    #[test]
+    fn tags_are_counted_across_sessions() {
+        let counts = tag_counts(&corpus());
+        assert_eq!(counts[0], TagCount { tag: "todo".into(), count: 2 });
+        assert_eq!(counts[1], TagCount { tag: "idea".into(), count: 1 });
+        assert_eq!(counts.len(), 2);
     }
 
     #[test]

@@ -29,6 +29,7 @@ Keys
   Ctrl+End            jump to the live entry
   Ctrl+Shift+Up/Down  window opacity
   Ctrl+Z / Ctrl+Y     undo / redo
+  #                   tag completion (#todo #data #q #idea #decision and your own)
   Right click / Ctrl+. suggestions for a misspelled word
   Ctrl+Shift+F        search all notes (#tag filters, accents optional)
   Ctrl+F              search inside the open session

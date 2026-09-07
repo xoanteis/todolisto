@@ -18,7 +18,7 @@ pub use agent::{Digest, Proposal, Selection, TodoState};
 pub use error::{Error, Result};
 pub use geometry::{Rect, WindowGeometry};
 pub use model::{Action, EndReason, Entry, Record, Session, SessionEnd, SessionHeader, SessionSummary};
-pub use search::{SearchHit, SearchQuery, SearchResult};
+pub use search::{SearchHit, SearchQuery, SearchResult, TagCount};
 pub use settings::{Profile, Settings};
 pub use store::Store;
 pub use sync::{SyncReport, SyncState};

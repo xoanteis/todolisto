@@ -93,4 +93,29 @@ test.describe("timestamped notes", () => {
     await expect(page.locator("button.pin")).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".statusbar .hints")).toContainText("Ctrl+Alt+N show/hide");
   });
+
+  test("typing # offers tags and Tab completes them", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeFocused();
+    await page.keyboard.type("Ask María #to");
+    const menu = page.locator(".suggestions.tags");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("option")).toHaveCount(1);
+    await expect(menu.getByRole("option").first()).toHaveText("#todo");
+    await page.keyboard.press("Tab");
+    await expect(menu).toHaveCount(0);
+    await expect(editor.locator(".entry").first()).toHaveText("Ask María #todo ");
+    await page.keyboard.type("#");
+    await expect(menu.getByRole("option")).toHaveCount(5);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(editor.locator(".entry").first()).toHaveText("Ask María #todo #data ");
+    await page.keyboard.type("#x");
+    await expect(menu).toHaveCount(0);
+    await page.keyboard.press("Backspace");
+    await expect(menu).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  });
 });
