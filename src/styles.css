@@ -1,0 +1,332 @@
+:root {
+  --bg: #fbfbf9;
+  --fg: #1f2328;
+  --muted: #6b7280;
+  --faint: #e5e7eb;
+  --panel: #f3f4f1;
+  --accent: #3b82f6;
+  --toast-bg: #1f2328;
+  --toast-fg: #f9fafb;
+  --font: ui-sans-serif, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, Consolas, "Cascadia Mono", "SFMono-Regular", Menlo, monospace;
+  --gutter: 5.75rem;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --fg: #e6e6e3;
+    --muted: #8b919a;
+    --faint: #2a2e35;
+    --panel: #1b1e24;
+    --toast-bg: #e6e6e3;
+    --toast-fg: #14161a;
+  }
+}
+
+.app[data-theme="light"] {
+  --bg: #fbfbf9;
+  --fg: #1f2328;
+  --muted: #6b7280;
+  --faint: #e5e7eb;
+  --panel: #f3f4f1;
+  --toast-bg: #1f2328;
+  --toast-fg: #f9fafb;
+}
+
+.app[data-theme="dark"] {
+  --bg: #14161a;
+  --fg: #e6e6e3;
+  --muted: #8b919a;
+  --faint: #2a2e35;
+  --panel: #1b1e24;
+  --toast-bg: #e6e6e3;
+  --toast-fg: #14161a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.loading,
+.fatal {
+  padding: 2rem;
+  color: var(--muted);
+}
+
+.fatal pre {
+  white-space: pre-wrap;
+  color: var(--fg);
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid var(--faint);
+  background: var(--panel);
+  font-size: 0.85rem;
+  user-select: none;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.profile-select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.15rem 0.4rem;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.session-status {
+  color: var(--muted);
+}
+
+.topbar button,
+.statusbar button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.topbar button:hover {
+  border-color: var(--accent);
+}
+
+/* Stream */
+.stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem 30vh;
+  scroll-padding-bottom: 8rem;
+}
+
+.history {
+  margin-bottom: 1.25rem;
+}
+
+.link {
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.session {
+  border-bottom: 1px solid var(--faint);
+}
+
+.session-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1rem auto 1fr auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.35rem 0.25rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-row:hover {
+  background: var(--panel);
+}
+
+.session-row .chev {
+  color: var(--muted);
+}
+
+.session-row .when {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.session-row .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row .meta {
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
+.session-body {
+  padding: 0.25rem 0 0.75rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Live session */
+.live-title {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0.5rem 0 0.35rem;
+}
+
+.editor-wrap {
+  min-height: 40vh;
+  cursor: text;
+}
+
+.ProseMirror {
+  outline: none;
+  min-height: 12rem;
+}
+
+/* Entries: gutter with the time, text on the right */
+.entry {
+  display: grid;
+  grid-template-columns: var(--gutter) 1fr;
+  column-gap: 0.85rem;
+  padding: 0.12rem 0;
+}
+
+.entry::before {
+  content: attr(data-time);
+  grid-column: 1;
+  grid-row: 1;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: right;
+  padding-top: 0.2rem;
+  user-select: none;
+}
+
+.entry[data-edited="1"]::before {
+  content: attr(data-time) " ✎";
+}
+
+.entry > p {
+  grid-column: 2;
+  margin: 0;
+  min-height: 1.55em;
+}
+
+.day-sep {
+  margin: 1.1rem 0 0.35rem calc(var(--gutter) + 0.85rem);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+.ProseMirror .day-sep:first-child {
+  margin-top: 0.25rem;
+}
+
+/* Status bar */
+.statusbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0.9rem;
+  border-top: 1px solid var(--faint);
+  background: var(--panel);
+  font-size: 0.75rem;
+  color: var(--muted);
+  user-select: none;
+}
+
+.statusbar .status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusbar .hints {
+  white-space: nowrap;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 3rem;
+  transform: translateX(-50%);
+  background: var(--toast-bg);
+  color: var(--toast-fg);
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  max-width: 90vw;
+}
+
+@media (max-width: 560px) {
+  :root {
+    --gutter: 4.5rem;
+  }
+  .statusbar .hints {
+    display: none;
+  }
+}

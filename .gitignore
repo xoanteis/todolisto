@@ -1,0 +1,21 @@
+# dependencies and build output
+node_modules/
+dist/
+target/
+src-tauri/gen/
+
+# tests
+test-results/
+playwright-report/
+coverage/
+
+# local app data when running from the repo folder
+/data/
+/config/
+/cache/
+/portable.marker
+
+# misc
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,25 @@
+[package]
+name = "todolisto"
+description = "Timestamped session notes for meetings and brainstorming"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "todolisto"
+
+[[bin]]
+name = "todolisto"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+todolisto-core = { path = "../crates/core" }
+dirs = "6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

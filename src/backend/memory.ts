@@ -1,0 +1,204 @@
+// In-browser backend with the same rules as the Rust store. Used when the UI
+// runs outside Tauri (`npm run dev` in a browser, end-to-end tests). State is
+// kept in localStorage so a page reload behaves like restarting the app.
+
+import { extractTags } from "../model/tags";
+import { ulid } from "../model/ulid";
+import type { Backend, EndReason, Entry, Session, SessionSummary, Settings } from "./types";
+
+const STORAGE_KEY = "todolisto.memory.v1";
+
+interface Data {
+  settings: Settings;
+  sessions: Record<string, Session[]>;
+}
+
+export function defaultSettings(): Settings {
+  return {
+    version: 1,
+    active_profile: "work",
+    profiles: [
+      { id: "work", name: "Work", color: "#3b82f6" },
+      { id: "personal", name: "Personal", color: "#10b981" },
+    ],
+    inactivity_minutes: 90,
+    languages: ["en", "es", "gl"],
+    theme: "system",
+    device_name: null,
+  };
+}
+
+const clone = <T>(value: T): T => (value === null || value === undefined ? value : JSON.parse(JSON.stringify(value)));
+
+function normalize(entry: Entry): Entry {
+  const text = entry.text.replace(/\r\n?/g, "\n").replace(/[\n \t]+$/, "");
+  return { ...entry, text, tags: extractTags(text), edited: entry.edited ?? null };
+}
+
+function lastActivity(session: Session): string {
+  let last = session.header.started;
+  for (const e of session.entries) {
+    if (Date.parse(e.ts) > Date.parse(last)) last = e.ts;
+    if (e.edited && Date.parse(e.edited) > Date.parse(last)) last = e.edited;
+  }
+  return last;
+}
+
+function firstLine(text: string): string {
+  const line = (text.split("\n")[0] ?? "").trim();
+  return line.length > 100 ? `${line.slice(0, 100).trimEnd()}…` : line;
+}
+
+function summary(s: Session): SessionSummary {
+  return {
+    id: s.header.id,
+    profile: s.header.profile,
+    started: s.header.started,
+    ended: s.end?.ended ?? null,
+    title: s.end?.title ?? s.header.title ?? null,
+    entries: s.entries.length,
+    todos: s.entries.filter((e) => e.tags.includes("todo")).length,
+    first_line: s.entries.length ? firstLine(s.entries[0].text) : null,
+    open: !s.end,
+    reason: s.end?.reason ?? null,
+    device: s.header.device,
+  };
+}
+
+const byStarted = (a: Session, b: Session) => Date.parse(a.header.started) - Date.parse(b.header.started);
+
+export function createMemoryBackend(storage: Storage | null = typeof localStorage === "undefined" ? null : localStorage): Backend {
+  let data: Data = load();
+
+  function load(): Data {
+    try {
+      const raw = storage?.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as Data;
+    } catch {
+      // ignore corrupt storage; start fresh
+    }
+    return { settings: defaultSettings(), sessions: {} };
+  }
+
+  function persist() {
+    try {
+      storage?.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      // storage may be unavailable (private mode); keep going in memory
+    }
+  }
+
+  const list = (profile: string): Session[] => (data.sessions[profile] ??= []);
+
+  function find(profile: string, id: string): Session {
+    const s = list(profile).find((x) => x.header.id === id);
+    if (!s) throw new Error(`session ${id} not found`);
+    return s;
+  }
+
+  function remove(profile: string, id: string) {
+    data.sessions[profile] = list(profile).filter((x) => x.header.id !== id);
+  }
+
+  function openOf(profile: string): Session | null {
+    const open = list(profile).filter((s) => !s.end).sort(byStarted);
+    return open.length ? open[open.length - 1] : null;
+  }
+
+  function endSession(profile: string, id: string, ended: string, reason: EndReason): Session | null {
+    const s = find(profile, id);
+    if (s.end) throw new Error(`session ${id} is already closed`);
+    if (s.entries.length === 0) {
+      remove(profile, id);
+      persist();
+      return null;
+    }
+    const last = lastActivity(s);
+    s.end = {
+      ended: Date.parse(ended) < Date.parse(last) ? last : ended,
+      entries: s.entries.length,
+      title: s.header.title,
+      reason,
+    };
+    persist();
+    return s;
+  }
+
+  function autoClose(profile: string, now: string): Session | null {
+    const minutes = data.settings.inactivity_minutes;
+    if (!minutes) return null;
+    const open = openOf(profile);
+    if (!open) return null;
+    const last = lastActivity(open);
+    if (Date.parse(last) + minutes * 60_000 > Date.parse(now)) return null;
+    return endSession(profile, open.header.id, last, "inactivity");
+  }
+
+  return {
+    async appInfo() {
+      return { version: "dev", data_root: "browser storage", portable: false, device: "browser" };
+    },
+    async getSettings() {
+      return clone(data.settings);
+    },
+    async saveSettings(settings) {
+      data.settings = clone(settings);
+      persist();
+      return clone(settings);
+    },
+    async getStream(profile, now) {
+      autoClose(profile, now);
+      const sessions = [...list(profile)].sort(byStarted).map(summary);
+      return { open: clone(openOf(profile)), sessions };
+    },
+    async readSession(profile, id) {
+      return clone(find(profile, id));
+    },
+    async startSession(profile, started) {
+      const open = openOf(profile);
+      if (open) return clone(open);
+      const session: Session = {
+        header: {
+          id: ulid(),
+          profile,
+          started,
+          tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          title: null,
+          app: "todolisto/dev",
+          device: "browser",
+        },
+        entries: [],
+        end: null,
+        actions: [],
+      };
+      list(profile).push(session);
+      persist();
+      return clone(session);
+    },
+    async saveEntries(profile, id, entries) {
+      const s = find(profile, id);
+      if (s.end) throw new Error(`session ${id} is already closed`);
+      s.entries = entries.map(normalize).filter((e) => e.text.trim() !== "");
+      persist();
+      return clone(s);
+    },
+    async endSession(profile, id, ended, reason) {
+      return clone(endSession(profile, id, ended, reason));
+    },
+    async reopenSession(profile, id) {
+      const s = find(profile, id);
+      if (!s.end) throw new Error(`session ${id} is still open`);
+      const open = openOf(profile);
+      if (open) {
+        if (open.entries.length === 0) remove(profile, open.header.id);
+        else throw new Error("another session is open with entries; close it before reopening an older one");
+      }
+      s.end = null;
+      persist();
+      return clone(s);
+    },
+    async checkInactivity(profile, now) {
+      return clone(autoClose(profile, now));
+    },
+  };
+}
