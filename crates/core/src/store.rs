@@ -3,6 +3,7 @@
 //! closed sessions. Files are rewritten atomically while a session is open and
 //! never rewritten after it closes (only appended to), which keeps sync simple.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -214,6 +215,68 @@ impl Store {
             return Ok(None);
         }
         self.end_session(profile, &open.header.id, last, EndReason::Inactivity)
+    }
+
+    fn dictionary_path(&self, profile: &str) -> PathBuf {
+        self.profile_dir(profile).join("dictionary.txt")
+    }
+
+    /// Words the user added to the dictionary of a profile, one per line in
+    /// `data/<profile>/dictionary.txt`.
+    pub fn user_words(&self, profile: &str) -> Result<Vec<String>> {
+        let path = self.dictionary_path(profile);
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let raw = fsutil::read_to_string(&path)?;
+        let mut words: Vec<String> = Vec::new();
+        for line in raw.lines() {
+            let word = line.trim();
+            if word.is_empty() || word.starts_with('#') || words.iter().any(|w| w == word) {
+                continue;
+            }
+            words.push(word.to_string());
+        }
+        Ok(words)
+    }
+
+    pub fn add_user_word(&self, profile: &str, word: &str) -> Result<Vec<String>> {
+        let word = word.trim();
+        if word.is_empty() || word.chars().any(char::is_whitespace) {
+            return Err(Error::Other("a dictionary word cannot be empty or contain spaces".to_string()));
+        }
+        let mut words = self.user_words(profile)?;
+        if !words.iter().any(|w| w == word) {
+            words.push(word.to_string());
+            let mut content = words.join("\n");
+            content.push('\n');
+            fsutil::atomic_write(&self.dictionary_path(profile), content.as_bytes())?;
+        }
+        Ok(words)
+    }
+
+    /// Personal autocorrect rules from `data/<profile>/autocorrect.txt`, one
+    /// `wrong=right` pair per line; `#` starts a comment.
+    pub fn autocorrect_rules(&self, profile: &str) -> Result<BTreeMap<String, String>> {
+        let path = self.profile_dir(profile).join("autocorrect.txt");
+        let mut rules = BTreeMap::new();
+        if !path.exists() {
+            return Ok(rules);
+        }
+        let raw = fsutil::read_to_string(&path)?;
+        for line in raw.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((wrong, right)) = line.split_once('=') {
+                let (wrong, right) = (wrong.trim(), right.trim());
+                if !wrong.is_empty() && !right.is_empty() && !wrong.chars().any(char::is_whitespace) {
+                    rules.insert(wrong.to_lowercase(), right.to_string());
+                }
+            }
+        }
+        Ok(rules)
     }
 
     pub fn write_session(&self, session: &Session) -> Result<PathBuf> {

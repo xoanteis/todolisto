@@ -41,6 +41,10 @@ pub struct Settings {
     pub close_to_tray: bool,
     /// Escape hides the window.
     pub hide_on_escape: bool,
+    /// Underline misspelled words using the bundled dictionaries.
+    pub spellcheck: bool,
+    /// `off`, `safe` (curated typo lists) or `aggressive` (dictionary based).
+    pub autocorrect: String,
 }
 
 impl Default for Settings {
@@ -61,6 +65,8 @@ impl Default for Settings {
             always_on_top: false,
             close_to_tray: true,
             hide_on_escape: true,
+            spellcheck: true,
+            autocorrect: "safe".to_string(),
         }
     }
 }
@@ -107,6 +113,13 @@ impl Settings {
         }
         self.opacity = clamp_opacity(self.opacity);
         self.hotkey = self.hotkey.trim().to_string();
+        if !["off", "safe", "aggressive"].contains(&self.autocorrect.as_str()) {
+            self.autocorrect = "safe".to_string();
+        }
+        self.languages.retain(|l| ["en", "es", "gl"].contains(&l.as_str()));
+        if self.languages.is_empty() {
+            self.languages = Settings::default().languages;
+        }
     }
 }
 
@@ -150,5 +163,7 @@ mod tests {
         assert_eq!(settings.opacity, MIN_OPACITY);
         assert_eq!(settings.hotkey, "Ctrl+Alt+N");
         assert!(settings.close_to_tray);
+        assert_eq!(settings.autocorrect, "safe");
+        assert_eq!(settings.languages, vec!["en", "es", "gl"]);
     }
 }

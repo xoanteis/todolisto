@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createBackend } from "./backend";
 import {
@@ -15,8 +15,10 @@ import {
 } from "./backend/types";
 import { Header } from "./components/Header";
 import { SessionList } from "./components/SessionList";
-import { Editor } from "./editor/Editor";
+import { Editor, type SpellOptions } from "./editor/Editor";
 import { formatDay, nowIso, timeOf } from "./model/time";
+import { BUILTIN_RULES } from "./spell/autocorrect";
+import { SpellClient, type SpellStatus } from "./spell/client";
 
 const backend = createBackend();
 const SAVE_DELAY_MS = 400;
@@ -27,6 +29,10 @@ export function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [win, setWin] = useState<WindowState | null>(null);
+  const spell = useMemo(() => new SpellClient(), []);
+  const [spellStatus, setSpellStatus] = useState<SpellStatus>("idle");
+  const [userWords, setUserWords] = useState<string[]>([]);
+  const [rules, setRules] = useState<Record<string, string>>(BUILTIN_RULES);
   const [profile, setProfile] = useState("");
   const [open, setOpen] = useState<Session | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -62,6 +68,54 @@ export function App() {
       setDocKey(`${p}:${stream.open?.header.id ?? "new"}:${Date.now()}`);
     },
     [setOpenSession],
+  );
+
+  useEffect(() => spell.onStatus(() => setSpellStatus(spell.status)), [spell]);
+
+  // Load the dictionaries once the settings are known; reload when languages change.
+  const languagesKey = settings?.languages.join(",") ?? "";
+  const spellEnabled = settings?.spellcheck ?? false;
+  useEffect(() => {
+    if (!languagesKey) return;
+    if (!spellEnabled) {
+      spell.disable();
+      return;
+    }
+    const p = profileRef.current;
+    backend
+      .getUserWords(p)
+      .then((words) => {
+        setUserWords(words);
+        spell.init(languagesKey.split(","), words);
+      })
+      .catch((e) => showToast(errorMessage(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [languagesKey, spellEnabled, spell]);
+
+  // Per-profile dictionary and autocorrect rules.
+  useEffect(() => {
+    if (!profile) return;
+    Promise.all([backend.getUserWords(profile), backend.getAutocorrectRules(profile)])
+      .then(([words, personal]) => {
+        setUserWords(words);
+        spell.setUserWords(words);
+        setRules({ ...BUILTIN_RULES, ...personal });
+      })
+      .catch((e) => showToast(errorMessage(e)));
+  }, [profile, spell, showToast]);
+
+  const addWord = useCallback(
+    async (word: string) => {
+      try {
+        const words = await backend.addUserWord(profileRef.current, word);
+        setUserWords(words);
+        spell.addWord(word, words);
+        showToast(`“${word}” added to the ${profileRef.current} dictionary`);
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [spell, showToast],
   );
 
   useEffect(() => {
@@ -261,6 +315,15 @@ export function App() {
   }
 
   const closed = sessions.filter((s) => !s.open);
+  const spellOpts: SpellOptions = { enabled: settings.spellcheck && spellStatus === "ready", level: settings.autocorrect, rules };
+  const spellLabel =
+    !settings.spellcheck || spellStatus === "off"
+      ? "spelling off"
+      : spellStatus === "ready"
+        ? `spelling ${spell.languages.join("·").toUpperCase()}${settings.autocorrect === "off" ? "" : ` · autocorrect ${settings.autocorrect}`}`
+        : spellStatus === "error"
+          ? `spelling unavailable (${spell.error ?? "error"})`
+          : "loading dictionaries…";
   const liveTitle = open
     ? `Session open since ${timeOf(open.header.started)}`
     : "New session · it starts with your first line";
@@ -286,13 +349,19 @@ export function App() {
           <Editor
             entries={open?.entries ?? []}
             docKey={docKey}
-            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity }}
+            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity, onAddWord: addWord }}
+            spell={spell}
+            spellOptions={spellOpts}
           />
         </section>
       </main>
       <footer className="statusbar">
         <span className="status">
           {open ? `${open.entries.length} ${open.entries.length === 1 ? "entry" : "entries"}` : "nothing written yet"}
+          {` · `}
+          <span className="spell-status" data-status={spellStatus} title={userWords.length ? `${userWords.length} personal words` : undefined}>
+            {spellLabel}
+          </span>
           {info ? ` · ${info.portable ? "portable" : "data"}: ${info.data_root}` : ""}
         </span>
         <span className="hints">

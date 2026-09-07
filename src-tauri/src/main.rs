@@ -91,6 +91,9 @@ fn main() {
             commands::end_session,
             commands::reopen_session,
             commands::check_inactivity,
+            commands::get_user_words,
+            commands::add_user_word,
+            commands::get_autocorrect_rules,
         ])
         .run(tauri::generate_context!())
         .expect("error while running todolisto");

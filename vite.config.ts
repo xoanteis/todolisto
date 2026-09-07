@@ -15,6 +15,10 @@ export default defineConfig({
     watch: { ignored: ["**/src-tauri/**", "**/target/**", "**/crates/**"] },
   },
   envPrefix: ["VITE_", "TAURI_ENV_*"],
+  // The Emscripten build of Hunspell is CommonJS; pre-bundle it so the
+  // worker never triggers a mid-session dependency re-optimisation.
+  optimizeDeps: { include: ["hunspell-asm/dist/esm/lib/browser/hunspell.js"] },
+  worker: { format: "es" },
   build: {
     target: "es2022",
     sourcemap: false,

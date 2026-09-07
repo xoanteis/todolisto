@@ -1,5 +1,7 @@
 //! IPC surface used by the UI. Argument names are snake_case on both sides.
 
+use std::collections::BTreeMap;
+
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use todolisto_core::settings::{clamp_opacity, is_safe_id};
@@ -220,4 +222,22 @@ pub fn check_inactivity(state: State<'_, AppState>, profile: String, now: String
         .store
         .auto_close_if_inactive(&profile, now, inactivity_minutes(&state))
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_user_words(state: State<'_, AppState>, profile: String) -> CmdResult<Vec<String>> {
+    check_profile(&profile)?;
+    state.store.user_words(&profile).map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn add_user_word(state: State<'_, AppState>, profile: String, word: String) -> CmdResult<Vec<String>> {
+    check_profile(&profile)?;
+    state.store.add_user_word(&profile, &word).map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_autocorrect_rules(state: State<'_, AppState>, profile: String) -> CmdResult<BTreeMap<String, String>> {
+    check_profile(&profile)?;
+    state.store.autocorrect_rules(&profile).map_err(|e| e.to_string())
 }

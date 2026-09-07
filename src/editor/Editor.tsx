@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
@@ -6,9 +6,13 @@ import { EditorState, Selection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 
 import type { Entry } from "../backend/types";
+import { SuggestionMenu } from "../components/SuggestionMenu";
+import type { AutocorrectLevel } from "../spell/autocorrect";
+import type { SpellClient } from "../spell/client";
 import { goToLive, insertTab, splitEntry } from "./commands";
 import { dayPlugin, stampPlugin } from "./plugins";
 import { docToEntries, entriesToDoc } from "./serialize";
+import { spellKey, spellPlugin, type SpellMenu } from "./spellPlugin";
 
 export interface EditorHandlers {
   onChange(entries: Entry[]): void;
@@ -17,6 +21,14 @@ export interface EditorHandlers {
   /** Escape: hide the window. Return false to let the key through. */
   onHide(): boolean;
   onOpacityStep(delta: number): void;
+  /** The user added a word to the dictionary of the active profile. */
+  onAddWord(word: string): void;
+}
+
+export interface SpellOptions {
+  enabled: boolean;
+  level: AutocorrectLevel;
+  rules: Record<string, string>;
 }
 
 interface Props {
@@ -25,15 +37,20 @@ interface Props {
   /** Any change of this value rebuilds the document from `entries`. */
   docKey: string;
   handlers: EditorHandlers;
+  spell: SpellClient;
+  spellOptions: SpellOptions;
 }
 
-export function Editor({ entries, docKey, handlers }: Props) {
+export function Editor({ entries, docKey, handlers, spell, spellOptions }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
   const entriesRef = useRef(entries);
   entriesRef.current = entries;
+  const spellOptionsRef = useRef(spellOptions);
+  spellOptionsRef.current = spellOptions;
+  const [menu, setMenu] = useState<SpellMenu | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -73,12 +90,20 @@ export function Editor({ entries, docKey, handlers }: Props) {
         history(),
         stampPlugin(),
         dayPlugin(),
+        spellPlugin({
+          client: spell,
+          enabled: () => spellOptionsRef.current.enabled,
+          level: () => spellOptionsRef.current.level,
+          rules: () => spellOptionsRef.current.rules,
+          onMenu: setMenu,
+        }),
       ],
     });
 
     const view = new EditorView(host, {
       state,
-      attributes: { spellcheck: "true", "aria-label": "Notes", role: "textbox", "aria-multiline": "true" },
+      // The bundled dictionaries replace the WebView's own spell checker.
+      attributes: { spellcheck: "false", "aria-label": "Notes", role: "textbox", "aria-multiline": "true" },
       dispatchTransaction(tr) {
         const next = view.state.apply(tr);
         view.updateState(next);
@@ -95,8 +120,9 @@ export function Editor({ entries, docKey, handlers }: Props) {
     return () => {
       view.destroy();
       viewRef.current = null;
+      setMenu(null);
     };
-  }, [docKey]);
+  }, [docKey, spell]);
 
   // Clicking the empty space under the text puts the caret at the end.
   const focusEnd = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -107,5 +133,29 @@ export function Editor({ entries, docKey, handlers }: Props) {
     view.focus();
   };
 
-  return <div className="editor-wrap" onMouseDown={focusEnd} ref={hostRef} />;
+  const closeMenu = (extra: { ignore?: string } = {}) => {
+    const view = viewRef.current;
+    if (view) view.dispatch(view.state.tr.setMeta(spellKey, { menu: null, ...extra }));
+  };
+
+  const pick = (replacement: string) => {
+    const view = viewRef.current;
+    if (!view || !menu) return;
+    const tr = view.state.tr.insertText(replacement, menu.from, menu.to);
+    tr.setMeta(spellKey, { menu: null });
+    view.dispatch(tr);
+    view.focus();
+  };
+
+  const addWord = () => {
+    if (!menu) return;
+    handlersRef.current.onAddWord(menu.word);
+    closeMenu({ ignore: menu.word });
+  };
+
+  return (
+    <div className="editor-wrap" onMouseDown={focusEnd} ref={hostRef}>
+      {menu && <SuggestionMenu menu={menu} onPick={pick} onAdd={addWord} onIgnore={() => closeMenu({ ignore: menu.word })} />}
+    </div>
+  );
 }

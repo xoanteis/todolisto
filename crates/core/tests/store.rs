@@ -182,3 +182,28 @@ fn sessions_are_listed_in_start_order_across_years() {
     assert_eq!(ids, vec![early.id().to_string(), late.id().to_string()]);
     assert!(store.read_session("personal", "missing").is_err());
 }
+
+#[test]
+fn user_dictionary_and_autocorrect_rules_per_profile() {
+    let (_dir, store) = store();
+    assert!(store.user_words("work").unwrap().is_empty());
+    assert_eq!(store.add_user_word("work", " Xoán ").unwrap(), vec!["Xoán"]);
+    assert_eq!(store.add_user_word("work", "ACME").unwrap(), vec!["Xoán", "ACME"]);
+    assert_eq!(store.add_user_word("work", "ACME").unwrap(), vec!["Xoán", "ACME"], "no duplicates");
+    assert!(store.add_user_word("work", "two words").is_err());
+    assert!(store.add_user_word("work", "  ").is_err());
+    assert!(store.user_words("personal").unwrap().is_empty(), "dictionaries are per profile");
+    let raw = fs::read_to_string(store.profile_dir("work").join("dictionary.txt")).unwrap();
+    assert_eq!(raw, "Xoán\nACME\n");
+
+    assert!(store.autocorrect_rules("work").unwrap().is_empty());
+    fs::write(
+        store.profile_dir("work").join("autocorrect.txt"),
+        "# personal shortcuts\nTBD = to be defined\nqeu=que\nbroken line\n = nothing\n",
+    )
+    .unwrap();
+    let rules = store.autocorrect_rules("work").unwrap();
+    assert_eq!(rules.len(), 2);
+    assert_eq!(rules["tbd"], "to be defined");
+    assert_eq!(rules["qeu"], "que");
+}

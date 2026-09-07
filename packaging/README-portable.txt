@@ -29,6 +29,7 @@ Keys
   Ctrl+End            jump to the live entry
   Ctrl+Shift+Up/Down  window opacity
   Ctrl+Z / Ctrl+Y     undo / redo
+  Right click / Ctrl+. suggestions for a misspelled word
 
 The close button hides the window to the tray icon; use the tray menu to
 quit. Starting todolisto.exe again just brings the running window back.

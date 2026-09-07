@@ -74,6 +74,8 @@ export interface Settings {
   always_on_top: boolean;
   close_to_tray: boolean;
   hide_on_escape: boolean;
+  spellcheck: boolean;
+  autocorrect: "off" | "safe" | "aggressive";
 }
 
 export interface WindowState {
@@ -111,6 +113,11 @@ export interface Backend {
   setPinned(pinned: boolean): Promise<WindowState>;
   /** Hides the window (to the tray); a no-op outside the desktop app. */
   hideWindow(): Promise<void>;
+  getUserWords(profile: string): Promise<string[]>;
+  /** Adds a word to the profile dictionary and returns the whole list. */
+  addUserWord(profile: string, word: string): Promise<string[]>;
+  /** Personal autocorrect rules (`wrong` → `right`), lower-cased keys. */
+  getAutocorrectRules(profile: string): Promise<Record<string, string>>;
   /** Applies the inactivity rule, then returns the open session and the list. */
   getStream(profile: string, now: string): Promise<StreamState>;
   readSession(profile: string, sessionId: string): Promise<Session>;

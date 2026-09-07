@@ -11,6 +11,7 @@ const STORAGE_KEY = "todolisto.memory.v1";
 interface Data {
   settings: Settings;
   sessions: Record<string, Session[]>;
+  userWords?: Record<string, string[]>;
 }
 
 export function defaultSettings(): Settings {
@@ -30,6 +31,8 @@ export function defaultSettings(): Settings {
     always_on_top: false,
     close_to_tray: true,
     hide_on_escape: true,
+    spellcheck: true,
+    autocorrect: "safe",
   };
 }
 
@@ -188,6 +191,21 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     },
     async hideWindow() {
       // nothing to hide in a browser tab
+    },
+    async getUserWords(profile) {
+      return [...(data.userWords?.[profile] ?? [])];
+    },
+    async addUserWord(profile, word) {
+      const trimmed = word.trim();
+      if (!trimmed || /\s/.test(trimmed)) throw new Error("a dictionary word cannot be empty or contain spaces");
+      data.userWords ??= {};
+      const words = (data.userWords[profile] ??= []);
+      if (!words.includes(trimmed)) words.push(trimmed);
+      persist();
+      return [...words];
+    },
+    async getAutocorrectRules() {
+      return {};
     },
     async getStream(profile, now) {
       autoClose(profile, now);
