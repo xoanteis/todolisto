@@ -1,5 +1,7 @@
 // Data transfer types; field names are snake_case to match the Rust core.
 
+import type { SearchQuery, SearchResult } from "../model/search";
+
 export type EndReason = "manual" | "inactivity" | "taken_over";
 
 export interface SessionHeader {
@@ -118,6 +120,8 @@ export interface Backend {
   addUserWord(profile: string, word: string): Promise<string[]>;
   /** Personal autocorrect rules (`wrong` → `right`), lower-cased keys. */
   getAutocorrectRules(profile: string): Promise<Record<string, string>>;
+  search(profile: string, query: SearchQuery): Promise<SearchResult>;
+  sessionMarkdown(profile: string, sessionId: string): Promise<string>;
   /** Applies the inactivity rule, then returns the open session and the list. */
   getStream(profile: string, now: string): Promise<StreamState>;
   readSession(profile: string, sessionId: string): Promise<Session>;

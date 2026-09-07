@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 
-use todolisto_core::{Settings, Store, WindowGeometry};
+use todolisto_core::{Session, Settings, Store, WindowGeometry};
 
 use crate::paths;
 
@@ -16,6 +17,9 @@ pub struct AppState {
     pub geometry_generation: AtomicU64,
     /// Why the global hotkey could not be registered, for the UI.
     pub hotkey_error: Mutex<Option<String>>,
+    /// Parsed sessions per profile. The app is the only writer of the data
+    /// folder, so the cache is dropped after every write and reloaded lazily.
+    pub catalog: Mutex<HashMap<String, Vec<Session>>>,
 }
 
 impl AppState {
@@ -42,7 +46,28 @@ impl AppState {
             geometry: Mutex::new(geometry),
             geometry_generation: AtomicU64::new(0),
             hotkey_error: Mutex::new(None),
+            catalog: Mutex::new(HashMap::new()),
         })
+    }
+
+    /// All sessions of a profile, oldest first, from the cache or the disk.
+    pub fn sessions(&self, profile: &str) -> Result<Vec<Session>, String> {
+        if let Ok(catalog) = self.catalog.lock() {
+            if let Some(sessions) = catalog.get(profile) {
+                return Ok(sessions.clone());
+            }
+        }
+        let sessions = self.store.load_sessions(profile).map_err(|e| e.to_string())?;
+        if let Ok(mut catalog) = self.catalog.lock() {
+            catalog.insert(profile.to_string(), sessions.clone());
+        }
+        Ok(sessions)
+    }
+
+    pub fn invalidate(&self, profile: &str) {
+        if let Ok(mut catalog) = self.catalog.lock() {
+            catalog.remove(profile);
+        }
     }
 
     pub fn settings(&self) -> Settings {

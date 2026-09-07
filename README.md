@@ -8,13 +8,14 @@ Scoping plan, decisions and roadmap: [docs/PLAN.md](docs/PLAN.md).
 
 ## Status
 
-Milestones M1, M2 and M3 of the plan: timestamped entries, multi-line
-entries, sessions with manual and automatic close, per-profile storage,
-history of past sessions, spell check in English, Spanish and Galician
-with suggestions and a personal dictionary, safe autocorrect, global hotkey
+Milestones M1 to M4 of the plan: timestamped entries, multi-line entries,
+sessions with manual and automatic close, per-profile storage, history of
+past sessions, spell check in English, Spanish and Galician with
+suggestions and a personal dictionary, safe autocorrect, global hotkey
 (Ctrl+Alt+N), window opacity, pin on top, tray icon, remembered window
-position, single instance. Search, Drive sync and the session agent come
-in the next milestones.
+position, single instance, search across all notes with tag and date
+filters, copy a session as Markdown. Drive sync and the session agent
+come in the next milestones.
 
 ## Keys
 
@@ -29,11 +30,22 @@ in the next milestones.
 | Esc | Hide the window (`hide_on_escape`) |
 | Ctrl+Shift+Up / Down | Window opacity in 5 % steps (`opacity`, 30 to 100) |
 | Right click or Ctrl+. | Suggestions for a misspelled word, add it to the dictionary, or ignore it |
+| Ctrl+Shift+F | Search everything (`#tag` filters, accents optional); Enter jumps to the note |
+| Ctrl+F | Search inside the open session |
 | Backspace right after an autocorrection | Restores what you typed |
 
 The close button hides the window to the tray (`close_to_tray`); quit from
 the tray menu. Sessions also close by themselves after 90 minutes without
 writing (`inactivity_minutes`, 0 disables it).
+
+## Search
+
+Search scans every session of the profile in memory: case and accents are
+ignored (`reunion` finds `reunión`), every word must appear, phrases rank
+first, `#tag` words filter by tag, and quick ranges limit the dates. A
+personal corpus is small enough that this answers in milliseconds, so
+there is no database to keep in sync; the plan's SQLite index stays an
+option if a corpus ever grows large.
 
 ## Spelling
 

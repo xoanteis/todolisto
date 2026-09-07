@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { history, redo, undo } from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
-import { EditorState, Selection } from "prosemirror-state";
+import { EditorState, Selection, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 
 import type { Entry } from "../backend/types";
@@ -23,6 +23,14 @@ export interface EditorHandlers {
   onOpacityStep(delta: number): void;
   /** The user added a word to the dictionary of the active profile. */
   onAddWord(word: string): void;
+  /** Ctrl+F (this session) and Ctrl+Shift+F (everything). */
+  onSearch(scope: "session" | "all"): void;
+}
+
+export interface EditorHandle {
+  /** Puts the caret at the start of an entry and scrolls it into view. */
+  focusEntry(entryId: string): boolean;
+  focus(): void;
 }
 
 export interface SpellOptions {
@@ -41,7 +49,7 @@ interface Props {
   spellOptions: SpellOptions;
 }
 
-export function Editor({ entries, docKey, handlers, spell, spellOptions }: Props) {
+export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries, docKey, handlers, spell, spellOptions }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const handlersRef = useRef(handlers);
@@ -51,6 +59,27 @@ export function Editor({ entries, docKey, handlers, spell, spellOptions }: Props
   const spellOptionsRef = useRef(spellOptions);
   spellOptionsRef.current = spellOptions;
   const [menu, setMenu] = useState<SpellMenu | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    focusEntry(entryId) {
+      const view = viewRef.current;
+      if (!view) return false;
+      let position: number | null = null;
+      view.state.doc.forEach((node, offset) => {
+        if (position === null && node.attrs.id === entryId) position = offset + 2;
+      });
+      if (position === null) return false;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position)).scrollIntoView());
+      view.focus();
+      const el = view.nodeDOM(position - 2) as HTMLElement | null;
+      el?.classList.add("flash");
+      window.setTimeout(() => el?.classList.remove("flash"), 1600);
+      return true;
+    },
+    focus() {
+      viewRef.current?.focus();
+    },
+  }));
 
   useEffect(() => {
     const host = hostRef.current;
@@ -71,6 +100,14 @@ export function Editor({ entries, docKey, handlers, spell, spellOptions }: Props
             return true;
           },
           "Mod-End": goToLive,
+          "Mod-f": () => {
+            handlersRef.current.onSearch("session");
+            return true;
+          },
+          "Mod-Shift-f": () => {
+            handlersRef.current.onSearch("all");
+            return true;
+          },
           Escape: () => handlersRef.current.onHide(),
           "Mod-Shift-ArrowUp": () => {
             handlersRef.current.onOpacityStep(+1);
@@ -158,4 +195,4 @@ export function Editor({ entries, docKey, handlers, spell, spellOptions }: Props
       {menu && <SuggestionMenu menu={menu} onPick={pick} onAdd={addWord} onIgnore={() => closeMenu({ ignore: menu.word })} />}
     </div>
   );
-}
+});

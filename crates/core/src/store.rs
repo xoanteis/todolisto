@@ -86,6 +86,16 @@ impl Store {
         Ok(files)
     }
 
+    /// Every session of a profile, parsed, oldest first.
+    pub fn load_sessions(&self, profile: &str) -> Result<Vec<Session>> {
+        let mut sessions = Vec::new();
+        for path in self.session_files(profile)? {
+            sessions.push(parse_file(&path)?);
+        }
+        sessions.sort_by_key(|s| s.header.started);
+        Ok(sessions)
+    }
+
     pub fn list_sessions(&self, profile: &str) -> Result<Vec<SessionSummary>> {
         let mut summaries = Vec::new();
         for path in self.session_files(profile)? {

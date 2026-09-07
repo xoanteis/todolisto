@@ -14,8 +14,10 @@ import {
   type WindowState,
 } from "./backend/types";
 import { Header } from "./components/Header";
-import { SessionList } from "./components/SessionList";
-import { Editor, type SpellOptions } from "./editor/Editor";
+import { SearchPanel, type SearchScope } from "./components/SearchPanel";
+import { SessionList, type Expanded } from "./components/SessionList";
+import { Editor, type EditorHandle, type SpellOptions } from "./editor/Editor";
+import type { SearchHit, SearchQuery } from "./model/search";
 import { formatDay, nowIso, timeOf } from "./model/time";
 import { BUILTIN_RULES } from "./spell/autocorrect";
 import { SpellClient, type SpellStatus } from "./spell/client";
@@ -33,6 +35,10 @@ export function App() {
   const [spellStatus, setSpellStatus] = useState<SpellStatus>("idle");
   const [userWords, setUserWords] = useState<string[]>([]);
   const [rules, setRules] = useState<Record<string, string>>(BUILTIN_RULES);
+  const [expanded, setExpanded] = useState<Expanded>({});
+  const [focusTarget, setFocusTarget] = useState<{ sessionId: string; entryId: string; nonce: number } | null>(null);
+  const [searchScope, setSearchScope] = useState<SearchScope | null>(null);
+  const editorRef = useRef<EditorHandle>(null);
   const [profile, setProfile] = useState("");
   const [open, setOpen] = useState<Session | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -65,6 +71,7 @@ export function App() {
       if (profileRef.current !== p) return;
       setOpenSession(stream.open);
       setSessions(stream.sessions);
+      setExpanded({});
       setDocKey(`${p}:${stream.open?.header.id ?? "new"}:${Date.now()}`);
     },
     [setOpenSession],
@@ -239,11 +246,86 @@ export function App() {
     [setOpacity],
   );
 
+  const searchOpenRef = useRef(false);
+  searchOpenRef.current = searchScope !== null;
+
   const hideWindow = useCallback((): boolean => {
+    if (searchOpenRef.current) {
+      setSearchScope(null);
+      return true;
+    }
     if (!winRef.current?.hide_on_escape) return false;
     void flush().then(() => backend.hideWindow());
     return true;
   }, [flush]);
+
+  const toggleSession = useCallback(async (id: string) => {
+    if (expanded[id]) {
+      setExpanded((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    setExpanded((prev) => ({ ...prev, [id]: "loading" }));
+    try {
+      const session = await backend.readSession(profileRef.current, id);
+      setExpanded((prev) => ({ ...prev, [id]: session }));
+    } catch (e) {
+      setExpanded((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      showToast(errorMessage(e));
+    }
+  }, [expanded, showToast]);
+
+  const copyMarkdown = useCallback(
+    async (id: string) => {
+      try {
+        const markdown = await backend.sessionMarkdown(profileRef.current, id);
+        await navigator.clipboard.writeText(markdown);
+        showToast("Session copied as Markdown");
+      } catch (e) {
+        showToast(`Could not copy: ${errorMessage(e)}`);
+      }
+    },
+    [showToast],
+  );
+
+  const runSearch = useCallback((query: SearchQuery) => backend.search(profileRef.current, query), []);
+
+  const openHit = useCallback(
+    async (hit: SearchHit) => {
+      setSearchScope(null);
+      if (openRef.current && hit.session_id === openRef.current.header.id) {
+        editorRef.current?.focusEntry(hit.entry_id);
+        return;
+      }
+      if (!expanded[hit.session_id] || expanded[hit.session_id] === "loading") {
+        try {
+          const session = await backend.readSession(profileRef.current, hit.session_id);
+          setExpanded((prev) => ({ ...prev, [hit.session_id]: session }));
+        } catch (e) {
+          showToast(errorMessage(e));
+          return;
+        }
+      }
+      setFocusTarget({ sessionId: hit.session_id, entryId: hit.entry_id, nonce: Date.now() });
+    },
+    [expanded, showToast],
+  );
+
+  const openSearch = useCallback((scope: SearchScope) => {
+    setSearchScope(scope === "session" && !openRef.current ? "all" : scope);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchScope(null);
+    editorRef.current?.focus();
+  }, []);
 
   const lastClosed = [...sessions].reverse().find((s) => !s.open) ?? null;
 
@@ -341,15 +423,27 @@ export function App() {
         onReopen={() => void reopen()}
         onPin={(pinned) => void setPinned(pinned)}
         onOpacity={(percent) => void setOpacity(percent)}
+        onSearch={() => openSearch("all")}
       />
+      {searchScope && (
+        <SearchPanel
+          scope={searchScope}
+          sessionId={open?.header.id ?? null}
+          search={runSearch}
+          onScope={setSearchScope}
+          onOpen={(hit) => void openHit(hit)}
+          onClose={closeSearch}
+        />
+      )}
       <main className="stream">
-        <SessionList sessions={closed} load={(id) => backend.readSession(profileRef.current, id)} />
+        <SessionList sessions={closed} expanded={expanded} onToggle={(id) => void toggleSession(id)} onCopyMarkdown={(id) => void copyMarkdown(id)} focus={focusTarget} />
         <section className="live" aria-label="Current session">
           <div className="live-title">{liveTitle}</div>
           <Editor
+            ref={editorRef}
             entries={open?.entries ?? []}
             docKey={docKey}
-            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity, onAddWord: addWord }}
+            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity, onAddWord: addWord, onSearch: openSearch }}
             spell={spell}
             spellOptions={spellOpts}
           />
@@ -365,7 +459,7 @@ export function App() {
           {info ? ` · ${info.portable ? "portable" : "data"}: ${info.data_root}` : ""}
         </span>
         <span className="hints">
-          Enter new line · Shift+Enter new entry · Ctrl+Enter end session · Ctrl+Shift+Enter reopen
+          Enter new line · Shift+Enter new entry · Ctrl+Enter end session · Ctrl+Shift+Enter reopen · Ctrl+Shift+F search
           {win?.hotkey ? ` · ${win.hotkey} show/hide` : ""}
         </span>
       </footer>

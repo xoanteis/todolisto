@@ -14,9 +14,10 @@ interface Props {
   onReopen(): void;
   onPin(pinned: boolean): void;
   onOpacity(percent: number): void;
+  onSearch(): void;
 }
 
-export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity }: Props) {
+export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity, onSearch }: Props) {
   const color = profiles.find((p) => p.id === profile)?.color ?? "#888";
   const count = open?.entries.length ?? 0;
   const status = open
@@ -37,6 +38,9 @@ export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEn
         ))}
       </select>
       <div className="spacer" />
+      <button type="button" className="search-button" onClick={onSearch} title="Search all notes (Ctrl+Shift+F)">
+        Search
+      </button>
       <span className="session-status">{status}</span>
       {open ? (
         <button type="button" onClick={onEnd} title="Ctrl+Enter">

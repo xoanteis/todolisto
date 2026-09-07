@@ -2,6 +2,7 @@
 // runs outside Tauri (`npm run dev` in a browser, end-to-end tests). State is
 // kept in localStorage so a page reload behaves like restarting the app.
 
+import { renderMarkdown, searchSessions } from "../model/search";
 import { extractTags } from "../model/tags";
 import { ulid } from "../model/ulid";
 import { MAX_OPACITY, MIN_OPACITY, type Backend, type EndReason, type Entry, type Session, type SessionSummary, type Settings, type WindowState } from "./types";
@@ -206,6 +207,12 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     },
     async getAutocorrectRules() {
       return {};
+    },
+    async search(profile, query) {
+      return searchSessions([...list(profile)].sort(byStarted), query);
+    },
+    async sessionMarkdown(profile, id) {
+      return renderMarkdown(find(profile, id));
     },
     async getStream(profile, now) {
       autoClose(profile, now);

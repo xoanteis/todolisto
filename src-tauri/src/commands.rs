@@ -7,7 +7,7 @@ use tauri::{AppHandle, State};
 use todolisto_core::settings::{clamp_opacity, is_safe_id};
 use todolisto_core::store::NewSession;
 use todolisto_core::time::{local_tz_name, parse, Timestamp};
-use todolisto_core::{EndReason, Entry, Session, SessionSummary, Settings};
+use todolisto_core::{markdown, search, EndReason, Entry, SearchQuery, SearchResult, Session, SessionSummary, Settings};
 
 use crate::state::AppState;
 use crate::window;
@@ -138,19 +138,26 @@ pub fn hide_window(app: AppHandle) {
 pub fn get_stream(state: State<'_, AppState>, profile: String, now: String) -> CmdResult<StreamState> {
     check_profile(&profile)?;
     let now = parse_ts(&now, "now")?;
-    state
+    let closed = state
         .store
         .auto_close_if_inactive(&profile, now, inactivity_minutes(&state))
         .map_err(|e| e.to_string())?;
-    let open = state.store.open_session(&profile).map_err(|e| e.to_string())?;
-    let sessions = state.store.list_sessions(&profile).map_err(|e| e.to_string())?;
-    Ok(StreamState { open, sessions })
+    if closed.is_some() {
+        state.invalidate(&profile);
+    }
+    let sessions = state.sessions(&profile)?;
+    let open = sessions.iter().filter(|s| s.is_open()).max_by_key(|s| s.header.started).cloned();
+    Ok(StreamState { open, sessions: sessions.iter().map(Session::summary).collect() })
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn read_session(state: State<'_, AppState>, profile: String, session_id: String) -> CmdResult<Session> {
     check_profile(&profile)?;
-    state.store.read_session(&profile, &session_id).map_err(|e| e.to_string())
+    state
+        .sessions(&profile)?
+        .into_iter()
+        .find(|s| s.header.id == session_id)
+        .ok_or_else(|| format!("session {session_id} not found"))
 }
 
 /// Creates the open session of a profile, or returns the existing one.
@@ -161,16 +168,18 @@ pub fn start_session(state: State<'_, AppState>, profile: String, started: Strin
     if let Some(open) = state.store.open_session(&profile).map_err(|e| e.to_string())? {
         return Ok(open);
     }
-    state
+    let created = state
         .store
         .create_session(NewSession {
-            profile,
+            profile: profile.clone(),
             started,
             tz: local_tz_name(),
             app: format!("todolisto/{}", env!("CARGO_PKG_VERSION")),
             device: Some(state.device_name()),
         })
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state.invalidate(&profile);
+    Ok(created)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -181,10 +190,12 @@ pub fn save_entries(
     entries: Vec<Entry>,
 ) -> CmdResult<Session> {
     check_profile(&profile)?;
-    state
+    let saved = state
         .store
         .save_entries(&profile, &session_id, entries)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state.invalidate(&profile);
+    Ok(saved)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -197,19 +208,23 @@ pub fn end_session(
 ) -> CmdResult<Option<Session>> {
     check_profile(&profile)?;
     let ended = parse_ts(&ended, "end")?;
-    state
+    let closed = state
         .store
         .end_session(&profile, &session_id, ended, reason)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state.invalidate(&profile);
+    Ok(closed)
 }
 
 #[tauri::command(rename_all = "snake_case")]
 pub fn reopen_session(state: State<'_, AppState>, profile: String, session_id: String) -> CmdResult<Session> {
     check_profile(&profile)?;
-    state
+    let reopened = state
         .store
         .reopen_session(&profile, &session_id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    state.invalidate(&profile);
+    Ok(reopened)
 }
 
 /// Closes the open session when it has been idle for longer than the
@@ -218,10 +233,14 @@ pub fn reopen_session(state: State<'_, AppState>, profile: String, session_id: S
 pub fn check_inactivity(state: State<'_, AppState>, profile: String, now: String) -> CmdResult<Option<Session>> {
     check_profile(&profile)?;
     let now = parse_ts(&now, "now")?;
-    state
+    let closed = state
         .store
         .auto_close_if_inactive(&profile, now, inactivity_minutes(&state))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    if closed.is_some() {
+        state.invalidate(&profile);
+    }
+    Ok(closed)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -240,4 +259,23 @@ pub fn add_user_word(state: State<'_, AppState>, profile: String, word: String) 
 pub fn get_autocorrect_rules(state: State<'_, AppState>, profile: String) -> CmdResult<BTreeMap<String, String>> {
     check_profile(&profile)?;
     state.store.autocorrect_rules(&profile).map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn search(state: State<'_, AppState>, profile: String, query: SearchQuery) -> CmdResult<SearchResult> {
+    check_profile(&profile)?;
+    let sessions = state.sessions(&profile)?;
+    Ok(search::search(&sessions, &query))
+}
+
+/// The Markdown rendering of a session, as written next to closed ones.
+#[tauri::command(rename_all = "snake_case")]
+pub fn session_markdown(state: State<'_, AppState>, profile: String, session_id: String) -> CmdResult<String> {
+    check_profile(&profile)?;
+    let session = state
+        .sessions(&profile)?
+        .into_iter()
+        .find(|s| s.header.id == session_id)
+        .ok_or_else(|| format!("session {session_id} not found"))?;
+    Ok(markdown::render(&session))
 }

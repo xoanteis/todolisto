@@ -247,6 +247,11 @@ Recommendation: **D with JSONL canonical files, plus a rendered Markdown copy pe
 session** (so notes are readable in Drive's preview and in any editor). The Markdown copy is
 derived, never edited.
 
+Implementation note (M4): the SQLite index was not needed. A personal corpus (tens of
+thousands of entries at most) is scanned in memory in milliseconds, so search runs over the
+parsed sessions cached by the app and no native database is shipped. The index remains an
+option if a corpus ever grows beyond that.
+
 Draft record format (one JSON object per line):
 
 ```jsonl
@@ -419,7 +424,7 @@ Each milestone is one pull request and ends with a downloadable Windows build.
 | M1 ✅ | Editor MVP: stream editor, timestamps, multi-line entries, JSONL storage, autosave, end session, past sessions collapsed, light/dark | Notepad replacement, already usable daily |
 | M2 | Writing aids: Hunspell en/es/gl, underline + suggestions, user dictionary, autocorrect L1 (L2 opt-in), tag autocomplete | Fast, multilingual typing |
 | M3 ✅ | Window: global hotkey, opacity, always-on-top, tray, remembered position, single instance, profile switching | The "bring it in front of me" workflow |
-| M4 | Search and history: FTS index, global search, timeline, Markdown export | Fast access to the past |
+| M4 ✅ | Search and history: in-memory search (no SQLite needed at this scale), global and per-session search with tag/date filters, jump to the note, copy session as Markdown | Fast access to the past |
 | M5 | Google Drive sync: OAuth `drive.file`, per-profile account, background sync, multi-PC rules, conflicts | The same stream on every PC |
 | M6 | Session agent: Claude extraction with structured output, review panel, local actions (title, summary, TODO list, facts), write-back | Sessions become actionable |
 | M7 | Polish: settings UI, backup/restore, auto-update; later executors (GitHub issues, calendar, digest) | Daily-driver quality |

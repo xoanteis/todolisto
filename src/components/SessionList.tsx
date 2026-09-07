@@ -1,44 +1,39 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import type { Session, SessionSummary } from "../backend/types";
 import { dayKey, formatDay, timeOf } from "../model/time";
 
+export type Expanded = Record<string, Session | "loading">;
+
 interface Props {
   sessions: SessionSummary[];
-  load(id: string): Promise<Session>;
+  expanded: Expanded;
+  onToggle(id: string): void;
+  onCopyMarkdown(id: string): void;
+  /** Entry to scroll to once its session is expanded; `nonce` retriggers. */
+  focus: { sessionId: string; entryId: string; nonce: number } | null;
 }
 
 const RECENT = 12;
 
-export function SessionList({ sessions, load }: Props) {
+export function SessionList({ sessions, expanded, onToggle, onCopyMarkdown, focus }: Props) {
   const [showAll, setShowAll] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, Session | "loading">>({});
+
+  const focusedSession = focus ? expanded[focus.sessionId] : undefined;
+  useEffect(() => {
+    if (!focus || !focusedSession || focusedSession === "loading") return;
+    const el = document.querySelector<HTMLElement>(`[data-entry-id="${focus.entryId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    el.classList.add("flash");
+    const timer = window.setTimeout(() => el.classList.remove("flash"), 1600);
+    return () => window.clearTimeout(timer);
+  }, [focus, focusedSession]);
 
   if (sessions.length === 0) return null;
-  const visible = showAll ? sessions : sessions.slice(-RECENT);
+  const forced = focus ? sessions.findIndex((s) => s.id === focus.sessionId) : -1;
+  const visible = showAll || (forced >= 0 && forced < sessions.length - RECENT) ? sessions : sessions.slice(-RECENT);
   const hidden = sessions.length - visible.length;
-
-  async function toggle(id: string) {
-    if (expanded[id]) {
-      setExpanded((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-      return;
-    }
-    setExpanded((prev) => ({ ...prev, [id]: "loading" }));
-    try {
-      const session = await load(id);
-      setExpanded((prev) => ({ ...prev, [id]: session }));
-    } catch {
-      setExpanded((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
-  }
 
   return (
     <section className="history" aria-label="Past sessions">
@@ -57,17 +52,24 @@ export function SessionList({ sessions, load }: Props) {
           .filter(Boolean)
           .join(" · ");
         return (
-          <div key={s.id} className={state ? "session expanded" : "session"}>
-            <button type="button" className="session-row" onClick={() => toggle(s.id)} aria-expanded={Boolean(state)}>
-              <span className="chev" aria-hidden="true">
-                {state ? "▾" : "▸"}
-              </span>
-              <span className="when">
-                {formatDay(s.started)} · {timeOf(s.started)}
-              </span>
-              <span className="title">{s.title ?? s.first_line ?? ""}</span>
-              <span className="meta">{meta}</span>
-            </button>
+          <div key={s.id} className={state ? "session expanded" : "session"} data-session-id={s.id}>
+            <div className="session-head">
+              <button type="button" className="session-row" onClick={() => onToggle(s.id)} aria-expanded={Boolean(state)}>
+                <span className="chev" aria-hidden="true">
+                  {state ? "▾" : "▸"}
+                </span>
+                <span className="when">
+                  {formatDay(s.started)} · {timeOf(s.started)}
+                </span>
+                <span className="title">{s.title ?? s.first_line ?? ""}</span>
+                <span className="meta">{meta}</span>
+              </button>
+              {state && state !== "loading" && (
+                <button type="button" className="copy" onClick={() => onCopyMarkdown(s.id)} title="Copy this session as Markdown">
+                  Copy as Markdown
+                </button>
+              )}
+            </div>
             {state === "loading" && <div className="session-body muted">Loading…</div>}
             {state && state !== "loading" && <SessionView session={state} />}
           </div>
@@ -88,7 +90,7 @@ function SessionView({ session }: { session: Session }) {
         return (
           <Fragment key={e.id}>
             {separator && <div className="day-sep">{formatDay(e.ts)}</div>}
-            <div className="entry" data-time={timeOf(e.ts)} data-edited={e.edited ? "1" : undefined} title={e.ts}>
+            <div className="entry" data-entry-id={e.id} data-time={timeOf(e.ts)} data-edited={e.edited ? "1" : undefined} title={e.ts}>
               {e.text.split("\n").map((line, i) => (
                 <p key={i}>{line || "\u00a0"}</p>
               ))}

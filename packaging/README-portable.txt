@@ -30,6 +30,8 @@ Keys
   Ctrl+Shift+Up/Down  window opacity
   Ctrl+Z / Ctrl+Y     undo / redo
   Right click / Ctrl+. suggestions for a misspelled word
+  Ctrl+Shift+F        search all notes (#tag filters, accents optional)
+  Ctrl+F              search inside the open session
 
 The close button hides the window to the tray icon; use the tray menu to
 quit. Starting todolisto.exe again just brings the running window back.
