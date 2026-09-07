@@ -10,6 +10,7 @@ import { SuggestionMenu } from "../components/SuggestionMenu";
 import type { AutocorrectLevel } from "../spell/autocorrect";
 import type { SpellClient } from "../spell/client";
 import { goToLive, insertTab, splitEntry } from "./commands";
+import { FLASH_MS, flashKey, flashPlugin } from "./flashPlugin";
 import { dayPlugin, stampPlugin } from "./plugins";
 import { docToEntries, entriesToDoc } from "./serialize";
 import { spellKey, spellPlugin, type SpellMenu } from "./spellPlugin";
@@ -64,16 +65,19 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
     focusEntry(entryId) {
       const view = viewRef.current;
       if (!view) return false;
-      let position: number | null = null;
+      let target: { from: number; to: number } | null = null;
       view.state.doc.forEach((node, offset) => {
-        if (position === null && node.attrs.id === entryId) position = offset + 2;
+        if (!target && node.attrs.id === entryId) target = { from: offset, to: offset + node.nodeSize };
       });
-      if (position === null) return false;
-      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position)).scrollIntoView());
+      if (!target) return false;
+      const { from, to } = target;
+      const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, from + 2)).scrollIntoView();
+      tr.setMeta(flashKey, { from, to });
+      view.dispatch(tr);
       view.focus();
-      const el = view.nodeDOM(position - 2) as HTMLElement | null;
-      el?.classList.add("flash");
-      window.setTimeout(() => el?.classList.remove("flash"), 1600);
+      window.setTimeout(() => {
+        if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta(flashKey, "clear"));
+      }, FLASH_MS);
       return true;
     },
     focus() {
@@ -127,6 +131,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
         history(),
         stampPlugin(),
         dayPlugin(),
+        flashPlugin(),
         spellPlugin({
           client: spell,
           enabled: () => spellOptionsRef.current.enabled,
@@ -148,6 +153,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor({ entries,
       },
     });
     viewRef.current = view;
+    if (import.meta.env.DEV) (window as unknown as { __pmView?: EditorView }).__pmView = view;
 
     view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
     view.focus();
