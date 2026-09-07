@@ -24,7 +24,7 @@ test.describe("search", () => {
     await page.keyboard.type("reunion maria");
     await expect(panel.locator(".hit")).toHaveCount(1);
     await expect(panel.locator(".hit mark")).toHaveCount(2);
-    await expect(panel.locator(".hit-meta")).toContainText("Session");
+    await expect(panel.locator(".hit-meta")).toContainText("#todo");
     await expect(panel.locator(".count")).toHaveText("1 result");
 
     await page.keyboard.press("Enter");
