@@ -4,7 +4,7 @@
 
 import { extractTags } from "../model/tags";
 import { ulid } from "../model/ulid";
-import type { Backend, EndReason, Entry, Session, SessionSummary, Settings } from "./types";
+import { MAX_OPACITY, MIN_OPACITY, type Backend, type EndReason, type Entry, type Session, type SessionSummary, type Settings, type WindowState } from "./types";
 
 const STORAGE_KEY = "todolisto.memory.v1";
 
@@ -25,6 +25,11 @@ export function defaultSettings(): Settings {
     languages: ["en", "es", "gl"],
     theme: "system",
     device_name: null,
+    hotkey: "Ctrl+Alt+N",
+    opacity: 90,
+    always_on_top: false,
+    close_to_tray: true,
+    hide_on_escape: true,
   };
 }
 
@@ -73,7 +78,11 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
   function load(): Data {
     try {
       const raw = storage?.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Data;
+      if (raw) {
+        const parsed = JSON.parse(raw) as Data;
+        parsed.settings = { ...defaultSettings(), ...parsed.settings };
+        return parsed;
+      }
     } catch {
       // ignore corrupt storage; start fresh
     }
@@ -134,6 +143,18 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
     return endSession(profile, open.header.id, last, "inactivity");
   }
 
+  function windowState(): WindowState {
+    const s = data.settings;
+    return {
+      opacity: s.opacity,
+      pinned: s.always_on_top,
+      hotkey: s.hotkey,
+      hotkey_error: null,
+      close_to_tray: s.close_to_tray,
+      hide_on_escape: s.hide_on_escape,
+    };
+  }
+
   return {
     async appInfo() {
       return { version: "dev", data_root: "browser storage", portable: false, device: "browser" };
@@ -142,9 +163,31 @@ export function createMemoryBackend(storage: Storage | null = typeof localStorag
       return clone(data.settings);
     },
     async saveSettings(settings) {
-      data.settings = clone(settings);
+      data.settings = { ...defaultSettings(), ...clone(settings) };
       persist();
-      return clone(settings);
+      return clone(data.settings);
+    },
+    async setActiveProfile(profile) {
+      if (!data.settings.profiles.some((p) => p.id === profile)) throw new Error(`unknown profile ${profile}`);
+      data.settings.active_profile = profile;
+      persist();
+      return clone(data.settings);
+    },
+    async windowState() {
+      return windowState();
+    },
+    async setOpacity(percent) {
+      data.settings.opacity = Math.min(MAX_OPACITY, Math.max(MIN_OPACITY, Math.round(percent)));
+      persist();
+      return windowState();
+    },
+    async setPinned(pinned) {
+      data.settings.always_on_top = pinned;
+      persist();
+      return windowState();
+    },
+    async hideWindow() {
+      // nothing to hide in a browser tab
     },
     async getStream(profile, now) {
       autoClose(profile, now);

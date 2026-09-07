@@ -20,7 +20,8 @@
         "minWidth": 380,
         "minHeight": 300,
         "resizable": true,
-        "center": true
+        "center": false,
+        "visible": false
       }
     ],
     "security": {
@@ -29,7 +30,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

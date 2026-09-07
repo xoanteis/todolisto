@@ -20,12 +20,19 @@ reports that it is missing, install it from
 https://developer.microsoft.com/microsoft-edge/webview2/
 
 Keys
+  Ctrl+Alt+N          show / hide todolisto from any app (global hotkey)
+  Esc                 hide the window
   Enter               new line inside the current entry
   Shift+Enter         new entry with a new timestamp
   Ctrl+Enter          end the session
   Ctrl+Shift+Enter    reopen the last session
   Ctrl+End            jump to the live entry
+  Ctrl+Shift+Up/Down  window opacity
   Ctrl+Z / Ctrl+Y     undo / redo
+
+The close button hides the window to the tray icon; use the tray menu to
+quit. Starting todolisto.exe again just brings the running window back.
+Hotkey, opacity, pin and the other options live in config\settings.json.
 
 Sessions also close by themselves after 90 minutes without writing
 (config\settings.json, "inactivity_minutes"; 0 disables it).

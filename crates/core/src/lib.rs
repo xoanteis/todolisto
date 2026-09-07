@@ -4,6 +4,7 @@
 
 pub mod error;
 pub mod fsutil;
+pub mod geometry;
 pub mod markdown;
 pub mod model;
 pub mod settings;
@@ -11,6 +12,7 @@ pub mod store;
 pub mod time;
 
 pub use error::{Error, Result};
+pub use geometry::{Rect, WindowGeometry};
 pub use model::{Action, EndReason, Entry, Record, Session, SessionEnd, SessionHeader, SessionSummary};
 pub use settings::{Profile, Settings};
 pub use store::Store;

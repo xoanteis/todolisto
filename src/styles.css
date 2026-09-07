@@ -143,6 +143,30 @@ body {
   border-color: var(--accent);
 }
 
+.opacity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.opacity-value {
+  font-variant-numeric: tabular-nums;
+  min-width: 3.6rem;
+  text-align: right;
+}
+
+.opacity input[type="range"] {
+  width: 5.5rem;
+  accent-color: var(--accent);
+}
+
+.pin.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Stream */
 .stream {
   flex: 1;

@@ -4,6 +4,13 @@
 mod commands;
 mod paths;
 mod state;
+mod tray;
+#[cfg(windows)]
+mod win32;
+mod window;
+
+use tauri::{Manager, WindowEvent};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 fn main() {
     if let Err(message) = webview_check() {
@@ -20,11 +27,63 @@ fn main() {
     };
 
     tauri::Builder::default()
+        // A second launch (double-clicking the exe again) brings the running
+        // window to the front instead of starting another instance.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| window::show(app)))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        window::toggle(app);
+                    }
+                })
+                .build(),
+        )
         .manage(app_state)
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let state = handle.state::<state::AppState>();
+            let settings = state.settings();
+            let saved_geometry = state.geometry.lock().ok().and_then(|g| *g);
+
+            if let Some(window) = window::main_window(&handle) {
+                window::apply_geometry(&window, saved_geometry);
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            window::apply_settings(&handle, &settings);
+            if let Err(e) = tray::setup(&handle) {
+                eprintln!("tray icon unavailable: {e}");
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                let app = window.app_handle();
+                window::save_geometry_now(app);
+                let close_to_tray = app
+                    .try_state::<state::AppState>()
+                    .map(|s| s.settings().close_to_tray)
+                    .unwrap_or(false);
+                if close_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+            WindowEvent::Moved(_) | WindowEvent::Resized(_) => {
+                window::schedule_geometry_save(window.app_handle());
+            }
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::get_settings,
             commands::save_settings,
+            commands::set_active_profile,
+            commands::window_state,
+            commands::set_opacity,
+            commands::set_pinned,
+            commands::hide_window,
             commands::get_stream,
             commands::read_session,
             commands::start_session,

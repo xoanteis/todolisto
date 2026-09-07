@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import type { Profile, Session } from "../backend/types";
+import { MAX_OPACITY, MIN_OPACITY, OPACITY_STEP, type Profile, type Session, type WindowState } from "../backend/types";
 import { timeOf } from "../model/time";
 
 interface Props {
@@ -8,12 +8,15 @@ interface Props {
   profile: string;
   open: Session | null;
   canReopen: boolean;
+  win: WindowState | null;
   onSwitch(profile: string): void;
   onEnd(): void;
   onReopen(): void;
+  onPin(pinned: boolean): void;
+  onOpacity(percent: number): void;
 }
 
-export function Header({ profiles, profile, open, canReopen, onSwitch, onEnd, onReopen }: Props) {
+export function Header({ profiles, profile, open, canReopen, win, onSwitch, onEnd, onReopen, onPin, onOpacity }: Props) {
   const color = profiles.find((p) => p.id === profile)?.color ?? "#888";
   const count = open?.entries.length ?? 0;
   const status = open
@@ -44,6 +47,31 @@ export function Header({ profiles, profile, open, canReopen, onSwitch, onEnd, on
           Reopen last
         </button>
       ) : null}
+      {win && (
+        <>
+          <label className="opacity" title="Window opacity · Ctrl+Shift+Up / Down">
+            <span className="opacity-value">◐ {win.opacity}%</span>
+            <input
+              type="range"
+              min={MIN_OPACITY}
+              max={MAX_OPACITY}
+              step={OPACITY_STEP}
+              value={win.opacity}
+              aria-label="Window opacity"
+              onChange={(e) => onOpacity(Number(e.target.value))}
+            />
+          </label>
+          <button
+            type="button"
+            className={win.pinned ? "pin active" : "pin"}
+            aria-pressed={win.pinned}
+            title={win.pinned ? "Unpin: let other windows cover this one" : "Pin: keep on top of other windows"}
+            onClick={() => onPin(!win.pinned)}
+          >
+            {win.pinned ? "Pinned" : "Pin"}
+          </button>
+        </>
+      )}
     </header>
   );
 }

@@ -415,10 +415,10 @@ Each milestone is one pull request and ends with a downloadable Windows build.
 
 | # | Milestone | You get |
 |---|---|---|
-| M0 | Scaffold: Tauri 2 + React + CI producing a portable exe, portable folder detection, one profile | An exe that opens a window and saves a text file |
-| M1 | Editor MVP: stream editor, timestamps, multi-line entries, JSONL storage, autosave, end session, past sessions collapsed, light/dark | Notepad replacement, already usable daily |
+| M0 ✅ | Scaffold: Tauri 2 + React + CI producing a portable exe, portable folder detection, one profile | An exe that opens a window and saves a text file |
+| M1 ✅ | Editor MVP: stream editor, timestamps, multi-line entries, JSONL storage, autosave, end session, past sessions collapsed, light/dark | Notepad replacement, already usable daily |
 | M2 | Writing aids: Hunspell en/es/gl, underline + suggestions, user dictionary, autocorrect L1 (L2 opt-in), tag autocomplete | Fast, multilingual typing |
-| M3 | Window: global hotkey, opacity modes, always-on-top, tray, profiles and switching | The "bring it in front of me" workflow |
+| M3 ✅ | Window: global hotkey, opacity, always-on-top, tray, remembered position, single instance, profile switching | The "bring it in front of me" workflow |
 | M4 | Search and history: FTS index, global search, timeline, Markdown export | Fast access to the past |
 | M5 | Google Drive sync: OAuth `drive.file`, per-profile account, background sync, multi-PC rules, conflicts | The same stream on every PC |
 | M6 | Session agent: Claude extraction with structured output, review panel, local actions (title, summary, TODO list, facts), write-back | Sessions become actionable |

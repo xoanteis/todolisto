@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createBackend } from "./backend";
-import { errorMessage, type AppInfo, type Entry, type Session, type SessionSummary, type Settings } from "./backend/types";
+import {
+  MAX_OPACITY,
+  MIN_OPACITY,
+  OPACITY_STEP,
+  errorMessage,
+  type AppInfo,
+  type Entry,
+  type Session,
+  type SessionSummary,
+  type Settings,
+  type WindowState,
+} from "./backend/types";
 import { Header } from "./components/Header";
 import { SessionList } from "./components/SessionList";
 import { Editor } from "./editor/Editor";
@@ -15,6 +26,7 @@ const TOAST_MS = 4_000;
 export function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [win, setWin] = useState<WindowState | null>(null);
   const [profile, setProfile] = useState("");
   const [open, setOpen] = useState<Session | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -55,9 +67,11 @@ export function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [appInfo, loaded] = await Promise.all([backend.appInfo(), backend.getSettings()]);
+        const [appInfo, loaded, windowState] = await Promise.all([backend.appInfo(), backend.getSettings(), backend.windowState()]);
         setInfo(appInfo);
         setSettings(loaded);
+        setWin(windowState);
+        if (windowState.hotkey_error) showToast(windowState.hotkey_error);
         profileRef.current = loaded.active_profile;
         setProfile(loaded.active_profile);
         await loadStream(loaded.active_profile);
@@ -65,7 +79,7 @@ export function App() {
         setFatal(errorMessage(e));
       }
     })();
-  }, [loadStream]);
+  }, [loadStream, showToast]);
 
   const persist = useCallback(
     async (p: string, entries: Entry[]) => {
@@ -109,13 +123,8 @@ export function App() {
       await flush();
       profileRef.current = p;
       setProfile(p);
-      setSettings((current) => {
-        if (!current) return current;
-        const next = { ...current, active_profile: p };
-        backend.saveSettings(next).catch((e) => showToast(errorMessage(e)));
-        return next;
-      });
       try {
+        setSettings(await backend.setActiveProfile(p));
         await loadStream(p);
       } catch (e) {
         showToast(errorMessage(e));
@@ -141,6 +150,46 @@ export function App() {
       showToast(errorMessage(e));
     }
   }, [flush, loadStream, setOpenSession, showToast]);
+
+  const setPinned = useCallback(
+    async (pinned: boolean) => {
+      try {
+        setWin(await backend.setPinned(pinned));
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [showToast],
+  );
+
+  const setOpacity = useCallback(
+    async (percent: number) => {
+      const clamped = Math.min(MAX_OPACITY, Math.max(MIN_OPACITY, percent));
+      try {
+        setWin(await backend.setOpacity(clamped));
+      } catch (e) {
+        showToast(errorMessage(e));
+      }
+    },
+    [showToast],
+  );
+
+  const winRef = useRef<WindowState | null>(null);
+  winRef.current = win;
+
+  const stepOpacity = useCallback(
+    (direction: number) => {
+      const current = winRef.current?.opacity ?? MAX_OPACITY;
+      void setOpacity(current + direction * OPACITY_STEP);
+    },
+    [setOpacity],
+  );
+
+  const hideWindow = useCallback((): boolean => {
+    if (!winRef.current?.hide_on_escape) return false;
+    void flush().then(() => backend.hideWindow());
+    return true;
+  }, [flush]);
 
   const lastClosed = [...sessions].reverse().find((s) => !s.open) ?? null;
 
@@ -223,15 +272,22 @@ export function App() {
         profile={profile}
         open={open}
         canReopen={lastClosed !== null}
+        win={win}
         onSwitch={(p) => void switchProfile(p)}
         onEnd={() => void endSession()}
         onReopen={() => void reopen()}
+        onPin={(pinned) => void setPinned(pinned)}
+        onOpacity={(percent) => void setOpacity(percent)}
       />
       <main className="stream">
         <SessionList sessions={closed} load={(id) => backend.readSession(profileRef.current, id)} />
         <section className="live" aria-label="Current session">
           <div className="live-title">{liveTitle}</div>
-          <Editor entries={open?.entries ?? []} docKey={docKey} handlers={{ onChange, onEndSession: endSession, onReopen: reopen }} />
+          <Editor
+            entries={open?.entries ?? []}
+            docKey={docKey}
+            handlers={{ onChange, onEndSession: endSession, onReopen: reopen, onHide: hideWindow, onOpacityStep: stepOpacity }}
+          />
         </section>
       </main>
       <footer className="statusbar">
@@ -239,7 +295,10 @@ export function App() {
           {open ? `${open.entries.length} ${open.entries.length === 1 ? "entry" : "entries"}` : "nothing written yet"}
           {info ? ` · ${info.portable ? "portable" : "data"}: ${info.data_root}` : ""}
         </span>
-        <span className="hints">Enter new line · Shift+Enter new entry · Ctrl+Enter end session · Ctrl+Shift+Enter reopen</span>
+        <span className="hints">
+          Enter new line · Shift+Enter new entry · Ctrl+Enter end session · Ctrl+Shift+Enter reopen
+          {win?.hotkey ? ` · ${win.hotkey} show/hide` : ""}
+        </span>
       </footer>
       {toast && (
         <div className="toast" role="status">

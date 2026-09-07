@@ -8,10 +8,28 @@ Scoping plan, decisions and roadmap: [docs/PLAN.md](docs/PLAN.md).
 
 ## Status
 
-Milestone M1 (editor MVP): timestamped entries, multi-line entries, sessions
-with manual and automatic close, per-profile storage, history of past
-sessions. Spell check, global hotkey, transparency, search, Drive sync and
-the session agent come in the next milestones.
+Milestones M1 and M3 of the plan: timestamped entries, multi-line entries,
+sessions with manual and automatic close, per-profile storage, history of
+past sessions, global hotkey (Ctrl+Alt+N), window opacity, pin on top,
+tray icon, remembered window position, single instance. Spell check,
+search, Drive sync and the session agent come in the next milestones.
+
+## Keys
+
+| Key | Action |
+|---|---|
+| Enter | New line inside the current entry |
+| Shift+Enter | New entry, stamped when its first character is typed |
+| Ctrl+Enter | End the session |
+| Ctrl+Shift+Enter | Reopen the last session |
+| Ctrl+End | Jump to the live entry |
+| Ctrl+Alt+N | Show or hide the window from anywhere (`hotkey` in settings.json) |
+| Esc | Hide the window (`hide_on_escape`) |
+| Ctrl+Shift+Up / Down | Window opacity in 5 % steps (`opacity`, 30 to 100) |
+
+The close button hides the window to the tray (`close_to_tray`); quit from
+the tray menu. Sessions also close by themselves after 90 minutes without
+writing (`inactivity_minutes`, 0 disables it).
 
 ## Layout
 
@@ -32,7 +50,8 @@ everything in the exe folder; otherwise the data lives in
 `%APPDATA%\todolisto`. `TODOLISTO_HOME=<dir>` overrides both.
 
 ```
-config/settings.json
+config/settings.json                                   profiles and preferences
+config/window.json                                     last window position on this machine
 data/<profile>/<year>/<YYYY-MM-DDTHHMMSS>_<id>.jsonl   one file per session
 data/<profile>/<year>/<same stem>.md                   rendered copy of a closed session
 ```

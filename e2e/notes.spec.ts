@@ -70,4 +70,27 @@ test.describe("timestamped notes", () => {
     await expect(editor.locator(".entry").first()).toContainText("Decision: ship on Friday");
     await expect(page.locator(".session-status")).toContainText("1 entry");
   });
+
+  test("pin and opacity controls persist through a reload", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeFocused();
+    await expect(page.locator(".opacity-value")).toHaveText("◐ 90%");
+
+    await page.keyboard.press("Control+Shift+ArrowDown");
+    await expect(page.locator(".opacity-value")).toHaveText("◐ 85%");
+    await page.locator(".opacity input").fill("60");
+    await expect(page.locator(".opacity-value")).toHaveText("◐ 60%");
+
+    const pin = page.locator("button.pin");
+    await expect(pin).toHaveAttribute("aria-pressed", "false");
+    await pin.click();
+    await expect(pin).toHaveAttribute("aria-pressed", "true");
+    await expect(pin).toHaveText("Pinned");
+
+    await page.reload();
+    await expect(page.locator(".opacity-value")).toHaveText("◐ 60%");
+    await expect(page.locator("button.pin")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".statusbar .hints")).toContainText("Ctrl+Alt+N show/hide");
+  });
 });

@@ -69,7 +69,25 @@ export interface Settings {
   languages: string[];
   theme: "system" | "light" | "dark";
   device_name?: string | null;
+  hotkey: string;
+  opacity: number;
+  always_on_top: boolean;
+  close_to_tray: boolean;
+  hide_on_escape: boolean;
 }
+
+export interface WindowState {
+  opacity: number;
+  pinned: boolean;
+  hotkey: string;
+  hotkey_error: string | null;
+  close_to_tray: boolean;
+  hide_on_escape: boolean;
+}
+
+export const MIN_OPACITY = 30;
+export const MAX_OPACITY = 100;
+export const OPACITY_STEP = 5;
 
 export interface AppInfo {
   version: string;
@@ -87,6 +105,12 @@ export interface Backend {
   appInfo(): Promise<AppInfo>;
   getSettings(): Promise<Settings>;
   saveSettings(settings: Settings): Promise<Settings>;
+  setActiveProfile(profile: string): Promise<Settings>;
+  windowState(): Promise<WindowState>;
+  setOpacity(percent: number): Promise<WindowState>;
+  setPinned(pinned: boolean): Promise<WindowState>;
+  /** Hides the window (to the tray); a no-op outside the desktop app. */
+  hideWindow(): Promise<void>;
   /** Applies the inactivity rule, then returns the open session and the list. */
   getStream(profile: string, now: string): Promise<StreamState>;
   readSession(profile: string, sessionId: string): Promise<Session>;

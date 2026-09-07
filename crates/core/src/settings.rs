@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 use crate::fsutil;
 
+pub const MIN_OPACITY: u8 = 30;
+pub const MAX_OPACITY: u8 = 100;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
     pub id: String,
@@ -28,6 +31,16 @@ pub struct Settings {
     pub theme: String,
     /// Overrides the machine name recorded in sessions started here.
     pub device_name: Option<String>,
+    /// Global shortcut that shows or hides the window, e.g. `Ctrl+Alt+N`.
+    /// An empty string disables it.
+    pub hotkey: String,
+    /// Window opacity in percent, `MIN_OPACITY..=MAX_OPACITY`.
+    pub opacity: u8,
+    pub always_on_top: bool,
+    /// The close button hides the window to the tray instead of quitting.
+    pub close_to_tray: bool,
+    /// Escape hides the window.
+    pub hide_on_escape: bool,
 }
 
 impl Default for Settings {
@@ -43,6 +56,11 @@ impl Default for Settings {
             languages: vec!["en".into(), "es".into(), "gl".into()],
             theme: "system".to_string(),
             device_name: None,
+            hotkey: "Ctrl+Alt+N".to_string(),
+            opacity: 90,
+            always_on_top: false,
+            close_to_tray: true,
+            hide_on_escape: true,
         }
     }
 }
@@ -74,7 +92,8 @@ impl Settings {
     }
 
     /// Repairs inconsistent values: at least one profile, an active profile
-    /// that exists, non-empty profile ids that are safe as folder names.
+    /// that exists, profile ids that are safe as folder names, opacity in
+    /// range, a trimmed hotkey.
     pub fn validate(&mut self) {
         self.profiles.retain(|p| is_safe_id(&p.id));
         if self.profiles.is_empty() {
@@ -86,7 +105,13 @@ impl Settings {
         if !["system", "light", "dark"].contains(&self.theme.as_str()) {
             self.theme = "system".to_string();
         }
+        self.opacity = clamp_opacity(self.opacity);
+        self.hotkey = self.hotkey.trim().to_string();
     }
+}
+
+pub fn clamp_opacity(percent: u8) -> u8 {
+    percent.clamp(MIN_OPACITY, MAX_OPACITY)
 }
 
 /// Profile ids double as folder names, so keep them to a conservative set.
@@ -111,16 +136,19 @@ mod tests {
     }
 
     #[test]
-    fn unknown_fields_and_bad_active_profile_are_tolerated() {
+    fn unknown_fields_and_bad_values_are_tolerated() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         std::fs::write(
             &path,
-            r##"{"version":1,"active_profile":"nope","profiles":[{"id":"x y","name":"Bad","color":"#000"}],"future":true}"##,
+            r##"{"version":1,"active_profile":"nope","profiles":[{"id":"x y","name":"Bad","color":"#000"}],"opacity":5,"hotkey":" Ctrl+Alt+N ","future":true}"##,
         )
         .unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.active_profile, "work");
         assert_eq!(settings.profiles.len(), 2);
+        assert_eq!(settings.opacity, MIN_OPACITY);
+        assert_eq!(settings.hotkey, "Ctrl+Alt+N");
+        assert!(settings.close_to_tray);
     }
 }

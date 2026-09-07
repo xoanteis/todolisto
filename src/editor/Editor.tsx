@@ -14,6 +14,9 @@ export interface EditorHandlers {
   onChange(entries: Entry[]): void;
   onEndSession(): void;
   onReopen(): void;
+  /** Escape: hide the window. Return false to let the key through. */
+  onHide(): boolean;
+  onOpacityStep(delta: number): void;
 }
 
 interface Props {
@@ -51,6 +54,15 @@ export function Editor({ entries, docKey, handlers }: Props) {
             return true;
           },
           "Mod-End": goToLive,
+          Escape: () => handlersRef.current.onHide(),
+          "Mod-Shift-ArrowUp": () => {
+            handlersRef.current.onOpacityStep(+1);
+            return true;
+          },
+          "Mod-Shift-ArrowDown": () => {
+            handlersRef.current.onOpacityStep(-1);
+            return true;
+          },
           Tab: insertTab,
           "Shift-Tab": () => true,
           "Mod-z": undo,

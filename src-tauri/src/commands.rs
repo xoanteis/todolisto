@@ -1,13 +1,14 @@
 //! IPC surface used by the UI. Argument names are snake_case on both sides.
 
 use serde::Serialize;
-use tauri::State;
-use todolisto_core::settings::is_safe_id;
+use tauri::{AppHandle, State};
+use todolisto_core::settings::{clamp_opacity, is_safe_id};
 use todolisto_core::store::NewSession;
 use todolisto_core::time::{local_tz_name, parse, Timestamp};
 use todolisto_core::{EndReason, Entry, Session, SessionSummary, Settings};
 
 use crate::state::AppState;
+use crate::window;
 
 type CmdResult<T> = Result<T, String>;
 
@@ -38,7 +39,7 @@ fn parse_ts(raw: &str, what: &str) -> CmdResult<Timestamp> {
 }
 
 fn inactivity_minutes(state: &AppState) -> u32 {
-    state.settings.lock().map(|s| s.inactivity_minutes).unwrap_or(0)
+    state.settings().inactivity_minutes
 }
 
 #[tauri::command]
@@ -51,19 +52,82 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
     }
 }
 
+#[derive(Serialize)]
+pub struct WindowState {
+    pub opacity: u8,
+    pub pinned: bool,
+    pub hotkey: String,
+    pub hotkey_error: Option<String>,
+    pub close_to_tray: bool,
+    pub hide_on_escape: bool,
+}
+
+fn window_state_of(state: &AppState) -> WindowState {
+    let settings = state.settings();
+    WindowState {
+        opacity: settings.opacity,
+        pinned: settings.always_on_top,
+        hotkey: settings.hotkey.clone(),
+        hotkey_error: state.hotkey_error.lock().ok().and_then(|e| e.clone()),
+        close_to_tray: settings.close_to_tray,
+        hide_on_escape: settings.hide_on_escape,
+    }
+}
+
 #[tauri::command]
-pub fn get_settings(state: State<'_, AppState>) -> CmdResult<Settings> {
-    state.settings.lock().map(|s| s.clone()).map_err(|e| e.to_string())
+pub fn get_settings(state: State<'_, AppState>) -> Settings {
+    state.settings()
+}
+
+/// Replaces the whole settings file and applies what affects the window.
+#[tauri::command(rename_all = "snake_case")]
+pub fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) -> CmdResult<Settings> {
+    let saved = state.update_settings(settings)?;
+    window::apply_settings(&app, &saved);
+    Ok(saved)
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> CmdResult<Settings> {
-    let mut settings = settings;
-    settings.validate();
-    settings.save(&state.settings_path).map_err(|e| e.to_string())?;
-    let mut current = state.settings.lock().map_err(|e| e.to_string())?;
-    *current = settings.clone();
-    Ok(settings)
+pub fn set_active_profile(state: State<'_, AppState>, profile: String) -> CmdResult<Settings> {
+    check_profile(&profile)?;
+    let mut settings = state.settings();
+    if settings.profile(&profile).is_none() {
+        return Err(format!("unknown profile {profile:?}"));
+    }
+    settings.active_profile = profile;
+    state.update_settings(settings)
+}
+
+#[tauri::command]
+pub fn window_state(state: State<'_, AppState>) -> WindowState {
+    window_state_of(&state)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn set_opacity(app: AppHandle, state: State<'_, AppState>, percent: u8) -> CmdResult<WindowState> {
+    let mut settings = state.settings();
+    settings.opacity = clamp_opacity(percent);
+    let saved = state.update_settings(settings)?;
+    if let Some(window) = window::main_window(&app) {
+        window::apply_opacity(&window, saved.opacity);
+    }
+    Ok(window_state_of(&state))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn set_pinned(app: AppHandle, state: State<'_, AppState>, pinned: bool) -> CmdResult<WindowState> {
+    let mut settings = state.settings();
+    settings.always_on_top = pinned;
+    let saved = state.update_settings(settings)?;
+    if let Some(window) = window::main_window(&app) {
+        window::apply_pinned(&window, saved.always_on_top);
+    }
+    Ok(window_state_of(&state))
+}
+
+#[tauri::command]
+pub fn hide_window(app: AppHandle) {
+    window::hide(&app);
 }
 
 /// Everything the UI needs for a profile. Also applies the inactivity rule,
